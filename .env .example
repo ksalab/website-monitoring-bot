@@ -1,0 +1,5 @@
+BOT_TOKEN=your_bot_token
+ADMIN_ID=your_admin_id
+GROUP_ID=your_group_id
+TOPIC_ID=your_topic_id
+CHECK_INTERVAL=3600
