@@ -1,21 +1,21 @@
-import aiohttp
 import asyncio
-import certifi
 import json
 import logging
 import os
-import socket
 import ssl
-import whois
+import socket
+import aiohttp
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, TypedDict
 from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import Command
 from aiogram.types import Message, BotCommand
 from aiogram.exceptions import TelegramBadRequest, TelegramConflictError
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
+import certifi
 from tenacity import retry, stop_after_attempt, wait_exponential
-from typing import Dict, List, Optional, TypedDict
 from urllib.parse import urlparse
+import whois
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -40,6 +40,8 @@ class SiteConfig(TypedDict):
     ssl_expires: Optional[str]
     domain_expires: Optional[str]
     domain_last_checked: Optional[str]
+    domain_notifications: List[int]
+    ssl_notifications: List[int]
 
 
 class WebsiteStatus(TypedDict):
@@ -61,7 +63,7 @@ class DomainStatus(TypedDict):
     error: Optional[str]
 
 
-def load_config() -> Dict[str, str]:
+def load_config() -> Dict[str, any]:
     """Load configuration from .env file."""
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     logger.info(f"Loading .env from: {env_path}")
@@ -79,7 +81,12 @@ def load_config() -> Dict[str, str]:
         "CHECK_INTERVAL": os.getenv("CHECK_INTERVAL", "3600")
         .split("#")[0]
         .strip(),
-        "DOMAIN_EXPIRY_THRESHOLD": os.getenv("DOMAIN_EXPIRY_THRESHOLD", "30")
+        "DOMAIN_EXPIRY_THRESHOLD": os.getenv(
+            "DOMAIN_EXPIRY_THRESHOLD", "30,15,7,1"
+        )
+        .split("#")[0]
+        .strip(),
+        "SSL_EXPIRY_THRESHOLD": os.getenv("SSL_EXPIRY_THRESHOLD", "30,15,7,1")
         .split("#")[0]
         .strip(),
     }
@@ -88,17 +95,28 @@ def load_config() -> Dict[str, str]:
         raise ValueError("BOT_TOKEN and GROUP_ID are required")
 
     try:
-        int(config["CHECK_INTERVAL"])
+        config["CHECK_INTERVAL"] = int(config["CHECK_INTERVAL"])
     except ValueError:
         raise ValueError(
             f"CHECK_INTERVAL must be a valid integer, got: {config['CHECK_INTERVAL']!r}"
         )
 
     try:
-        int(config["DOMAIN_EXPIRY_THRESHOLD"])
+        config["DOMAIN_EXPIRY_THRESHOLD"] = [
+            int(x) for x in config["DOMAIN_EXPIRY_THRESHOLD"].split(",")
+        ]
     except ValueError:
         raise ValueError(
-            f"DOMAIN_EXPIRY_THRESHOLD must be a valid integer, got: {config['DOMAIN_EXPIRY_THRESHOLD']!r}"
+            f"DOMAIN_EXPIRY_THRESHOLD must be comma-separated integers, got: {config['DOMAIN_EXPIRY_THRESHOLD']!r}"
+        )
+
+    try:
+        config["SSL_EXPIRY_THRESHOLD"] = [
+            int(x) for x in config["SSL_EXPIRY_THRESHOLD"].split(",")
+        ]
+    except ValueError:
+        raise ValueError(
+            f"SSL_EXPIRY_THRESHOLD must be comma-separated integers, got: {config['SSL_EXPIRY_THRESHOLD']!r}"
         )
 
     if config["TOPIC_ID"]:
@@ -124,6 +142,9 @@ def load_sites() -> List[SiteConfig]:
             for site in sites:
                 if not isinstance(site, dict) or "url" not in site:
                     raise ValueError(f"Invalid site entry: {site}")
+                # Ensure notifications fields exist
+                site.setdefault("domain_notifications", [])
+                site.setdefault("ssl_notifications", [])
             return sites
     except FileNotFoundError as e:
         logger.error(f"{sites_path} not found")
@@ -252,12 +273,18 @@ def check_domain_expiration(domain: str) -> DomainStatus:
     return result
 
 
+def get_nearest_threshold(
+    days_left: int, thresholds: List[int]
+) -> Optional[int]:
+    """Find the nearest threshold that matches the days left."""
+    for threshold in sorted(thresholds, reverse=True):
+        if days_left <= threshold:
+            return threshold
+    return None
+
+
 async def monitor_websites(
-    bot: Bot,
-    group_id: str,
-    topic_id: Optional[str],
-    interval: int,
-    expiry_threshold: int,
+    bot: Bot, group_id: str, topic_id: Optional[str], interval: int
 ):
     """Periodically monitor websites and send notifications if issues are found."""
     logger.info("Starting website monitoring task")
@@ -265,7 +292,8 @@ async def monitor_websites(
         sites = load_sites()
         last_status: Dict[str, tuple[WebsiteStatus, SSLStatus]] = {}
         config = load_config()
-        expiry_threshold_days = int(config["DOMAIN_EXPIRY_THRESHOLD"])
+        domain_thresholds = config["DOMAIN_EXPIRY_THRESHOLD"]
+        ssl_thresholds = config["SSL_EXPIRY_THRESHOLD"]
     except Exception as e:
         logger.error(f"Failed to load sites or config: {e}")
         return
@@ -301,6 +329,40 @@ async def monitor_websites(
             site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
             site["ssl_expires"] = ssl_result["expires"]
 
+            # Check SSL expiration warnings
+            if site["ssl_expires"]:
+                try:
+                    ssl_expiry = datetime.strptime(
+                        site["ssl_expires"], "%Y-%m-%d %H:%M:%S"
+                    )
+                    days_left = (ssl_expiry - datetime.now()).days
+                    nearest_threshold = get_nearest_threshold(
+                        days_left, ssl_thresholds
+                    )
+                    if (
+                        nearest_threshold
+                        and nearest_threshold not in site["ssl_notifications"]
+                    ):
+                        message = (
+                            f"⚠️ SSL expiration warning!\n"
+                            f"URL: {url}\n"
+                            f"Expires: {site['ssl_expires']}\n"
+                            f"Days left: {days_left}"
+                        )
+                        await bot.send_message(
+                            chat_id=group_id,
+                            message_thread_id=(
+                                int(topic_id) if topic_id else None
+                            ),
+                            text=message,
+                        )
+                        logger.warning(
+                            f"Sent SSL expiration warning for {url}: {days_left} days left"
+                        )
+                        site["ssl_notifications"].append(nearest_threshold)
+                except ValueError:
+                    logger.error(f"Invalid ssl_expires format for {url}")
+
             # Check domain expiration if not checked recently
             parsed_url = urlparse(url)
             domain = parsed_url.hostname
@@ -330,14 +392,21 @@ async def monitor_websites(
                         f"Domain expiration check failed for {url}: {domain_result['error']}"
                     )
 
-            # Check for domain expiration warnings
+            # Check domain expiration warnings
             if site["domain_expires"]:
                 try:
                     domain_expiry = datetime.strptime(
                         site["domain_expires"], "%Y-%m-%d %H:%M:%S"
                     )
                     days_left = (domain_expiry - datetime.now()).days
-                    if days_left <= expiry_threshold_days:
+                    nearest_threshold = get_nearest_threshold(
+                        days_left, domain_thresholds
+                    )
+                    if (
+                        nearest_threshold
+                        and nearest_threshold
+                        not in site["domain_notifications"]
+                    ):
                         message = (
                             f"⚠️ Domain expiration warning!\n"
                             f"URL: {url}\n"
@@ -354,6 +423,7 @@ async def monitor_websites(
                         logger.warning(
                             f"Sent domain expiration warning for {url}: {days_left} days left"
                         )
+                        site["domain_notifications"].append(nearest_threshold)
                 except ValueError:
                     logger.error(f"Invalid domain_expires format for {url}")
 
@@ -489,14 +559,24 @@ async def status_command(message: Message):
                         f"Domain expiration check failed for {url}: {domain_result['error']}"
                     )
 
-            # Calculate days left for domain expiration
-            days_left = "N/A"
+            # Calculate days left for SSL and domain expiration
+            ssl_days_left = "N/A"
+            if site["ssl_expires"]:
+                try:
+                    ssl_expiry = datetime.strptime(
+                        site["ssl_expires"], "%Y-%m-%d %H:%M:%S"
+                    )
+                    ssl_days_left = (ssl_expiry - datetime.now()).days
+                except ValueError:
+                    logger.error(f"Invalid ssl_expires format for {url}")
+
+            domain_days_left = "N/A"
             if site["domain_expires"]:
                 try:
                     domain_expiry = datetime.strptime(
                         site["domain_expires"], "%Y-%m-%d %H:%M:%S"
                     )
-                    days_left = (domain_expiry - datetime.now()).days
+                    domain_days_left = (domain_expiry - datetime.now()).days
                 except ValueError:
                     logger.error(f"Invalid domain_expires format for {url}")
 
@@ -505,8 +585,9 @@ async def status_command(message: Message):
                 f"Status: {status_result['status']}\n"
                 f"SSL Valid: {site['ssl_valid']}\n"
                 f"SSL Expires: {site['ssl_expires'] or 'N/A'}\n"
+                f"SSL Days Left: {ssl_days_left}\n"
                 f"Domain Expires: {site['domain_expires'] or 'N/A'}\n"
-                f"Days Left: {days_left}\n\n"
+                f"Domain Days Left: {domain_days_left}\n\n"
             )
             logger.info(
                 f"Status for {url}: Status={status_result['status']}, SSL={ssl_result['ssl_status']}, Domain={site['domain_expires']}"
@@ -571,7 +652,6 @@ async def main():
                 config["GROUP_ID"],
                 config["TOPIC_ID"],
                 int(config["CHECK_INTERVAL"]),
-                int(config["DOMAIN_EXPIRY_THRESHOLD"]),
             )
         )
 

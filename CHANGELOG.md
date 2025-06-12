@@ -5,6 +5,13 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.5.0] - 2025-06-12
+
+### Added
+
+- feat(notifications): add multiple DOMAIN_EXPIRY_THRESHOLD values (30,15,7,1)
+- feat(notifications): add SSL_EXPIRY_THRESHOLD with values (30,15,7,1)
+
 ## [0.4.0] - 2025-06-12
 
 ### Added
