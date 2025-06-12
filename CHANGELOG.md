@@ -5,6 +5,36 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.8.0] - 2025-06-12
+
+### Added
+
+- feat(logging): move logs to logs/ directory
+- feat(logging): implement log rotation with compression (.gz)
+- feat(logging): enhance log informativeness for operations
+
+### Fixed
+
+- fix(code): correct save(sites) to save(sites) (repeated issue)
+
+## [0.7.0] - 2025-06-12
+
+### Added
+
+- feat(commands): add /listsites command to list monitored websites
+
+### Fixed
+
+- fix(code): correct save(sites) to save_sites(sites)
+- fix(logging): comment out verbose config loading logs
+
+## [0.6.0] - 2025-06-12
+
+### Added
+
+- feat(notifications): add NOTIFICATION_MODE (group/user) with USER_ID support
+- feat(notifications): remove startup message
+
 ## [0.5.0] - 2025-06-12
 
 ### Added
