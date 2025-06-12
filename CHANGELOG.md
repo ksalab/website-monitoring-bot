@@ -5,6 +5,13 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.6.0] - 2025-06-12
+
+### Added
+
+- feat(notifications): add NOTIFICATION_MODE (group/user) with USER_ID support
+- feat(notifications): remove startup message
+
 ## [0.5.0] - 2025-06-12
 
 ### Added

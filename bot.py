@@ -71,7 +71,8 @@ def load_config() -> Dict[str, any]:
 
     logger.debug(
         f"Environment variables: BOT_TOKEN={os.environ.get('BOT_TOKEN', 'Not set')}, "
-        f"GROUP_ID={os.environ.get('GROUP_ID', 'Not set')}"
+        f"GROUP_ID={os.environ.get('GROUP_ID', 'Not set')}, "
+        f"USER_ID={os.environ.get('USER_ID', 'Not set')}"
     )
 
     config = {
@@ -89,10 +90,29 @@ def load_config() -> Dict[str, any]:
         "SSL_EXPIRY_THRESHOLD": os.getenv("SSL_EXPIRY_THRESHOLD", "30,15,7,1")
         .split("#")[0]
         .strip(),
+        "NOTIFICATION_MODE": os.getenv("NOTIFICATION_MODE", "group")
+        .split("#")[0]
+        .strip(),
+        "USER_ID": os.getenv("USER_ID"),
     }
 
-    if not config["BOT_TOKEN"] or not config["GROUP_ID"]:
-        raise ValueError("BOT_TOKEN and GROUP_ID are required")
+    if not config["BOT_TOKEN"]:
+        raise ValueError("BOT_TOKEN is required")
+
+    if config["NOTIFICATION_MODE"] not in ["group", "user"]:
+        raise ValueError(
+            f"NOTIFICATION_MODE must be 'group' or 'user', got: {config['NOTIFICATION_MODE']!r}"
+        )
+
+    if config["NOTIFICATION_MODE"] == "group" and not config["GROUP_ID"]:
+        raise ValueError(
+            "GROUP_ID is required when NOTIFICATION_MODE is 'group'"
+        )
+
+    if config["NOTIFICATION_MODE"] == "user" and not config["USER_ID"]:
+        raise ValueError(
+            "USER_ID is required when NOTIFICATION_MODE is 'user'"
+        )
 
     try:
         config["CHECK_INTERVAL"] = int(config["CHECK_INTERVAL"])
@@ -126,6 +146,14 @@ def load_config() -> Dict[str, any]:
         except ValueError:
             raise ValueError(
                 f"TOPIC_ID must be a valid integer, got: {config['TOPIC_ID']!r}"
+            )
+
+    if config["USER_ID"]:
+        try:
+            int(config["USER_ID"])
+        except ValueError:
+            raise ValueError(
+                f"USER_ID must be a valid integer, got: {config['USER_ID']!r}"
             )
 
     logger.info(f"Loaded config: {config}")
@@ -265,10 +293,10 @@ def check_domain_expiration(domain: str) -> DomainStatus:
                 result["error"] = "Invalid expiration date format"
         else:
             result["error"] = "No expiration date found"
-        logger.debug(f"Domain {domain} - Expires: {result['expires']}")
+        logger.debug(f"Domain {domain}: {result['expires']}")
     except Exception as e:
+        logger.error(f"Domain check failed for {domain}: {e}")
         result["error"] = str(e)
-        logger.warning(f"Domain check failed: {domain} - {e}")
 
     return result
 
@@ -283,15 +311,33 @@ def get_nearest_threshold(
     return None
 
 
-async def monitor_websites(
-    bot: Bot, group_id: str, topic_id: Optional[str], interval: int
-):
+async def send_notification(bot: Bot, config: Dict[str, any], message: str):
+    """Send notification based on NOTIFICATION_MODE."""
+    try:
+        if config["NOTIFICATION_MODE"] == "group":
+            await bot.send_message(
+                chat_id=config["GROUP_ID"],
+                message_thread_id=(
+                    int(config["TOPIC_ID"]) if config["TOPIC_ID"] else None
+                ),
+                text=message,
+            )
+        else:  # user
+            await bot.send_message(
+                chat_id=config["USER_ID"],
+                text=message,
+            )
+        logger.info(f"Sent notification: {message}")
+    except TelegramBadRequest as e:
+        logger.error(f"Failed to send notification: {e}")
+
+
+async def monitor_websites(bot: Bot, config: Dict[str, any], interval: int):
     """Periodically monitor websites and send notifications if issues are found."""
     logger.info("Starting website monitoring task")
     try:
         sites = load_sites()
         last_status: Dict[str, tuple[WebsiteStatus, SSLStatus]] = {}
-        config = load_config()
         domain_thresholds = config["DOMAIN_EXPIRY_THRESHOLD"]
         ssl_thresholds = config["SSL_EXPIRY_THRESHOLD"]
     except Exception as e:
@@ -349,16 +395,7 @@ async def monitor_websites(
                             f"Expires: {site['ssl_expires']}\n"
                             f"Days left: {days_left}"
                         )
-                        await bot.send_message(
-                            chat_id=group_id,
-                            message_thread_id=(
-                                int(topic_id) if topic_id else None
-                            ),
-                            text=message,
-                        )
-                        logger.warning(
-                            f"Sent SSL expiration warning for {url}: {days_left} days left"
-                        )
+                        await send_notification(bot, config, message)
                         site["ssl_notifications"].append(nearest_threshold)
                 except ValueError:
                     logger.error(f"Invalid ssl_expires format for {url}")
@@ -413,16 +450,7 @@ async def monitor_websites(
                             f"Expires: {site['domain_expires']}\n"
                             f"Days left: {days_left}"
                         )
-                        await bot.send_message(
-                            chat_id=group_id,
-                            message_thread_id=(
-                                int(topic_id) if topic_id else None
-                            ),
-                            text=message,
-                        )
-                        logger.warning(
-                            f"Sent domain expiration warning for {url}: {days_left} days left"
-                        )
+                        await send_notification(bot, config, message)
                         site["domain_notifications"].append(nearest_threshold)
                 except ValueError:
                     logger.error(f"Invalid domain_expires format for {url}")
@@ -442,13 +470,7 @@ async def monitor_websites(
                             f"Status: {status_result['status']}\n"
                             f"Error: {status_result['error'] or 'N/A'}"
                         )
-                        await bot.send_message(
-                            chat_id=group_id,
-                            message_thread_id=(
-                                int(topic_id) if topic_id else None
-                            ),
-                            text=message,
-                        )
+                        await send_notification(bot, config, message)
                         logger.warning(
                             f"Sent website issue notification for {url}: {status_result['status']}"
                         )
@@ -464,22 +486,14 @@ async def monitor_websites(
                             f"Expires: {ssl_result['expires'] or 'N/A'}\n"
                             f"Error: {ssl_result['error'] or 'N/A'}"
                         )
-                        await bot.send_message(
-                            chat_id=group_id,
-                            message_thread_id=(
-                                int(topic_id) if topic_id else None
-                            ),
-                            text=message,
-                        )
+                        await send_notification(bot, config, message)
                         logger.warning(
                             f"Sent SSL issue notification for {url}: {ssl_result['ssl_status']}"
                         )
 
                     last_status[url] = current_status
                 except TelegramBadRequest as e:
-                    logger.error(
-                        f"Failed to send notification to group {group_id}: {e}"
-                    )
+                    logger.error(f"Failed to send notification: {e}")
 
         # Save updated sites
         save_sites(sites)
@@ -503,6 +517,7 @@ async def status_command(message: Message):
     logger.info("Received /status command")
     try:
         sites = load_sites()
+        config = load_config()
         response = "Current website statuses:\n\n"
         logger.info(f"Checking status for {len(sites)} sites")
 
@@ -632,25 +647,11 @@ async def main():
         await bot.delete_webhook()
         logger.info("Webhook cleared")
 
-        # Send test message to verify group and topic
-        try:
-            await bot.send_message(
-                chat_id=config["GROUP_ID"],
-                message_thread_id=(
-                    int(config["TOPIC_ID"]) if config["TOPIC_ID"] else None
-                ),
-                text="Bot started successfully!",
-            )
-            logger.info("Test message sent successfully")
-        except TelegramBadRequest as e:
-            logger.error(f"Failed to send test message: {e}")
-
         # Start monitoring task
         asyncio.create_task(
             monitor_websites(
                 bot,
-                config["GROUP_ID"],
-                config["TOPIC_ID"],
+                config,
                 int(config["CHECK_INTERVAL"]),
             )
         )
