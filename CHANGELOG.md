@@ -5,6 +5,19 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.3.0] - 2025-06-12
+
+### Added
+
+- feat(sites): move sites.json to /data and extend format with ssl_valid, ssl_expires, domain_expires
+- feat(sites): update sites.json with check results
+
+## [0.2.0] - 2025-06-11
+
+### Fixed
+
+- fix(bot): some bugs
+
 ## [0.1.0] - 2025-06-11
 
 ### Added

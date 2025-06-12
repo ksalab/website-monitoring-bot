@@ -1,0 +1,10 @@
+UX/UI:
+  - button for adding site to checking
+
+Backend:
+  - change format sites.json for keeping ssl_valid, ssl_expires, domain_expires
+
+Functions:
+  ✔ check ssl certificate @done(25-06-11 14:50)
+  - check domain expire date
+

@@ -20,11 +20,11 @@ from urllib.parse import urlparse
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s [ %(levelname)s ] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",  # Remove milliseconds
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
-        logging.FileHandler("bot.log", mode="a"),  # Log to file
-        logging.StreamHandler(),  # Log to console
+        logging.FileHandler("bot.log", mode="a"),
+        logging.StreamHandler(),
     ],
 )
 
@@ -35,6 +35,9 @@ router = Router()
 # Type definitions
 class SiteConfig(TypedDict):
     url: str
+    ssl_valid: Optional[bool]
+    ssl_expires: Optional[str]
+    domain_expires: Optional[str]
 
 
 class WebsiteStatus(TypedDict):
@@ -53,7 +56,7 @@ class SSLStatus(TypedDict):
 def load_config() -> Dict[str, str]:
     """Load configuration from .env file."""
     env_path = os.path.join(os.path.dirname(__file__), ".env")
-    # logger.info(f"Loading .env from: {env_path}")
+    logger.info(f"Loading .env from: {env_path}")
     load_dotenv(env_path, override=True)
 
     logger.debug(
@@ -64,7 +67,7 @@ def load_config() -> Dict[str, str]:
     config = {
         "BOT_TOKEN": os.getenv("BOT_TOKEN"),
         "GROUP_ID": os.getenv("GROUP_ID"),
-        "TOPIC_ID": os.getenv("TOPIC_ID"),  # Optional
+        "TOPIC_ID": os.getenv("TOPIC_ID"),
         "CHECK_INTERVAL": os.getenv("CHECK_INTERVAL", "3600")
         .split("#")[0]
         .strip(),
@@ -89,14 +92,15 @@ def load_config() -> Dict[str, str]:
                 f"TOPIC_ID must be a valid integer, got: {config['TOPIC_ID']!r}"
             )
 
-    # logger.info(f"Loaded config: {config}")
+    logger.info(f"Loaded config: {config}")
     return config
 
 
 def load_sites() -> List[SiteConfig]:
-    """Load list of websites to monitor from sites.json."""
+    """Load list of websites to monitor from data/sites.json."""
+    sites_path = os.path.join(os.path.dirname(__file__), "data", "sites.json")
     try:
-        with open("sites.json", "r") as file:
+        with open(sites_path, "r") as file:
             sites = json.load(file)
             logger.info(f"Loaded sites: {sites}")
             for site in sites:
@@ -104,11 +108,22 @@ def load_sites() -> List[SiteConfig]:
                     raise ValueError(f"Invalid site entry: {site}")
             return sites
     except FileNotFoundError as e:
-        logger.error("sites.json not found")
+        logger.error(f"{sites_path} not found")
         raise
     except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON in sites.json: {e}")
+        logger.error(f"Invalid JSON in {sites_path}: {e}")
         raise
+
+
+def save_sites(sites: List[SiteConfig]):
+    """Save updated sites to data/sites.json."""
+    sites_path = os.path.join(os.path.dirname(__file__), "data", "sites.json")
+    try:
+        with open(sites_path, "w") as file:
+            json.dump(sites, file, indent=2)
+        logger.info("Saved updated sites to data/sites.json")
+    except Exception as e:
+        logger.error(f"Failed to save sites to {sites_path}: {e}")
 
 
 @retry(
@@ -226,6 +241,11 @@ async def monitor_websites(
                 f"Checked {url}: Status={status_result['status']}, SSL={ssl_result['ssl_status']}"
             )
 
+            # Update site data
+            site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
+            site["ssl_expires"] = ssl_result["expires"]
+            site["domain_expires"] = None  # Placeholder for domain expiration
+
             current_status = (status_result, ssl_result)
             last_site_status = last_status.get(url)
 
@@ -280,6 +300,9 @@ async def monitor_websites(
                         f"Failed to send notification to group {group_id}: {e}"
                     )
 
+        # Save updated sites
+        save_sites(sites)
+
         await asyncio.sleep(interval)
 
 
@@ -322,15 +345,24 @@ async def status_command(message: Message):
                 logger.error(f"Error checking {url} for status command")
                 continue
 
+            # Update site data
+            site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
+            site["ssl_expires"] = ssl_result["expires"]
+            site["domain_expires"] = None  # Placeholder for domain expiration
+
             response += (
                 f"🌐 {url}\n"
                 f"Status: {status_result['status']}\n"
-                f"SSL: {ssl_result['ssl_status']}\n"
-                f"Expires: {ssl_result['expires'] or 'N/A'}\n\n"
+                f"SSL Valid: {site['ssl_valid']}\n"
+                f"SSL Expires: {site['ssl_expires'] or 'N/A'}\n"
+                f"Domain Expires: {site['domain_expires'] or 'N/A'}\n\n"
             )
             logger.info(
                 f"Status for {url}: Status={status_result['status']}, SSL={ssl_result['ssl_status']}"
             )
+
+        # Save updated sites
+        save_sites(sites)
 
         await message.answer(response)
         logger.info("Sent status response")
@@ -369,17 +401,17 @@ async def main():
         logger.info("Webhook cleared")
 
         # Send test message to verify group and topic
-        # try:
-        #     await bot.send_message(
-        #         chat_id=config["GROUP_ID"],
-        #         message_thread_id=(
-        #             int(config["TOPIC_ID"]) if config["TOPIC_ID"] else None
-        #         ),
-        #         text="Bot started successfully!",
-        #     )
-        #     logger.info("Test message sent successfully")
-        # except TelegramBadRequest as e:
-        #     logger.error(f"Failed to send test message: {e}")
+        try:
+            await bot.send_message(
+                chat_id=config["GROUP_ID"],
+                message_thread_id=(
+                    int(config["TOPIC_ID"]) if config["TOPIC_ID"] else None
+                ),
+                text="Bot started successfully!",
+            )
+            logger.info("Test message sent successfully")
+        except TelegramBadRequest as e:
+            logger.error(f"Failed to send test message: {e}")
 
         # Start monitoring task
         asyncio.create_task(
