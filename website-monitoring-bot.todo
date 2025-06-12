@@ -3,11 +3,13 @@ UX/UI:
 
 Backend:
   ✔ change format sites.json for keeping ssl_valid, ssl_expires, domain_expires @done(25-06-12 18:09)
-  - log rotation and compress
+  ✔ log rotation and compress @done(25-06-12 22:22)
+  - refactoring
 
 Functions:
   ✔ check ssl certificate @done(25-06-11 14:50)
   ✔ check domain expire date @done(25-06-12 18:09)
   ✔ notification events @done(25-06-12 18:10)
   ✔ list existing sites for checking @done(25-06-12 18:28)
+  - show domain registrant
 

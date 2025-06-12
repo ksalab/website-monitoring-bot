@@ -5,6 +5,19 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.9.0] - 2025-06-10
+
+### Added
+
+- feat(refactor): split code into modules under modules/ (config, logging, storage, checks, notifications, handlers)
+- feat(refactor): improve code readability with PEP 8 and best practices
+- refactor(config): move constants to config module
+- refactor(logging): centralize logging setup
+- refactor(storage): separate sites.json handling
+- refactor(checks): modularize HTTP, SSL, and domain checks
+- refactor(notifications): encapsulate monitoring logic
+- refactor(handlers): organize command handlers
+
 ## [0.8.0] - 2025-06-12
 
 ### Added
