@@ -5,6 +5,7 @@ __pycache__/
 
 # addictional
 bump_version.py
+data/
 
 # C extensions
 *.so
