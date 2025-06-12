@@ -66,7 +66,7 @@ class DomainStatus(TypedDict):
 def load_config() -> Dict[str, any]:
     """Load configuration from .env file."""
     env_path = os.path.join(os.path.dirname(__file__), ".env")
-    logger.info(f"Loading .env from: {env_path}")
+    # logger.info(f"Loading .env from: {env_path}")
     load_dotenv(env_path, override=True)
 
     logger.debug(
@@ -156,7 +156,7 @@ def load_config() -> Dict[str, any]:
                 f"USER_ID must be a valid integer, got: {config['USER_ID']!r}"
             )
 
-    logger.info(f"Loaded config: {config}")
+    # logger.info(f"Loaded config: {config}")
     return config
 
 
@@ -293,10 +293,10 @@ def check_domain_expiration(domain: str) -> DomainStatus:
                 result["error"] = "Invalid expiration date format"
         else:
             result["error"] = "No expiration date found"
-        logger.debug(f"Domain {domain}: {result['expires']}")
+        logger.debug(f"Domain {domain} - Expires: {result['expires']}")
     except Exception as e:
-        logger.error(f"Domain check failed for {domain}: {e}")
         result["error"] = str(e)
+        logger.warning(f"Domain check failed: {domain} - {e}")
 
     return result
 
@@ -507,7 +507,7 @@ async def start_command(message: Message):
     logger.info("Received /start command")
     await message.answer(
         "Website Monitoring Bot started!\n"
-        "Use /status to check current website statuses."
+        "Use /status to check current website statuses or /listsites to list monitored sites."
     )
 
 
@@ -620,6 +620,28 @@ async def status_command(message: Message):
         )
 
 
+@router.message(Command("listsites"))
+async def listsites_command(message: Message):
+    """Handle /listsites command to list all monitored websites."""
+    logger.info("Received /listsites command")
+    try:
+        sites = load_sites()
+        if not sites:
+            await message.answer("No sites are currently monitored.")
+            return
+
+        response = "Monitored websites:\n\n"
+        for site in sites:
+            response += f"- {site['url']}\n"
+        await message.answer(response)
+        logger.info("Sent listsites response")
+    except Exception as e:
+        logger.error(f"Listsites command failed: {e}")
+        await message.answer(
+            "Error retrieving site list. Check logs for details."
+        )
+
+
 async def main():
     """Main function to initialize and run the bot."""
     try:
@@ -636,6 +658,10 @@ async def main():
                 BotCommand(
                     command="status",
                     description="Check current website statuses",
+                ),
+                BotCommand(
+                    command="listsites",
+                    description="List all monitored websites",
                 ),
             ]
         )
