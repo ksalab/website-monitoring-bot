@@ -5,6 +5,17 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.7.0] - 2025-06-12
+
+### Added
+
+- feat(commands): add /listsites command to list monitored websites
+
+### Fixed
+
+- fix(code): correct save(sites) to save_sites(sites)
+- fix(logging): comment out verbose config loading logs
+
 ## [0.6.0] - 2025-06-12
 
 ### Added
