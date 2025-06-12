@@ -5,6 +5,18 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.8.0] - 2025-06-12
+
+### Added
+
+- feat(logging): move logs to logs/ directory
+- feat(logging): implement log rotation with compression (.gz)
+- feat(logging): enhance log informativeness for operations
+
+### Fixed
+
+- fix(code): correct save(sites) to save(sites) (repeated issue)
+
 ## [0.7.0] - 2025-06-12
 
 ### Added
