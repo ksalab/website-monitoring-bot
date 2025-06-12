@@ -1,9 +1,10 @@
 BOT_TOKEN=your_bot_token
-ADMIN_ID=your_admin_id
+USER_ID=your_user_id
 GROUP_ID=your_group_id
-TOPIC_ID=your_topic_id
+TOPIC_ID=your_topic_id # optional
 
 CHECK_INTERVAL=3600
 
+NOTIFICATION_MODE=group # group/user
 DOMAIN_EXPIRY_THRESHOLD=30,15,7,1
 SSL_EXPIRY_THRESHOLD=30,15,7,1
