@@ -5,6 +5,13 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [0.4.0] - 2025-06-12
+
+### Added
+
+- feat(domain): add domain expiration monitoring with WHOIS
+- feat(notifications): send domain expiration warnings based on DOMAIN_EXPIRY_THRESHOLD
+
 ## [0.3.0] - 2025-06-12
 
 ### Added
