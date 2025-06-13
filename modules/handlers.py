@@ -6,6 +6,14 @@ from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.exceptions import TelegramBadRequest
 from urllib.parse import urlparse
+from aiogram.utils.formatting import (
+    Text,
+    Bold,
+    Url,
+    as_line,
+    as_marked_section,
+    as_key_value,
+)
 from .storage import SiteConfig, load_sites, save
 from .checks import (
     check_website_status,
@@ -16,23 +24,6 @@ from .config import DATE_FORMAT
 
 logger = logging.getLogger(__name__)
 router = Router()
-
-
-def escape_markdown_v2(text: str) -> str:
-    """Escape special characters for Telegram MarkdownV2.
-
-    Args:
-        text: Text to escape.
-
-    Returns:
-        str: Escaped text.
-    """
-    if text is None or text == "":
-        return "N/A"
-    special_chars = r'._!#$%&*+-=|\:;<>?@[]^{}()~`'
-    for char in special_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
 
 
 @router.message(Command("start"))
@@ -78,18 +69,19 @@ async def status_command(message: Message):
                 if isinstance(status_result, Exception) or isinstance(
                     ssl_result, Exception
                 ):
-                    response = (
-                        f"🌐 {escape_markdown_v2(url)}\n"
-                        f"Status: 🔴 Error during check\n"
-                        f"--- SSL ---\n"
-                        f"Error: Check failed\n"
-                        f"--- Domain ---\n"
-                        f"Error: Check failed\n"
+                    content = (as_line(Text("🌐 ", url)),)
+                    as_line(Text("Status: 🔴 Error during check")),
+                    as_marked_section(
+                        "--- SSL ---", as_key_value("Error:", "Check failed")
+                    ),
+                    as_marked_section(
+                        "--- Domain ---",
+                        as_key_value("Error:", "Check failed"),
                     )
                     logger.debug(
-                        f"Sending /status message for {url}:\n{response}"
+                        f"Sending /status message for {url}: {content.render()}"
                     )
-                    await message.answer(response, parse_mode="MarkdownV2")
+                    await message.answer(**content.as_kwargs())
                     logger.error(
                         f"Error checking {url} for /status command: {status_result or ssl_result}"
                     )
@@ -116,7 +108,7 @@ async def status_command(message: Message):
                 domain = parsed_url.hostname
                 domain_status = "Unknown"
                 domain_days_left = "N/A"
-                registrar_info = "Unknown"
+                registrar_info = Text("Unknown")
                 if domain:
                     domain_result = check_domain_expiration(domain)
                     logger.debug(
@@ -153,11 +145,19 @@ async def status_command(message: Message):
                             ):
                                 registrar_url = registrar_url[0]
                             if registrar_url:
-                                registrar_info = f"[{escape_markdown_v2(registrar)}]({escape_markdown_v2(registrar_url)})"
+                                registrar_info = Text(
+                                    "[",
+                                    registrar,
+                                    "](",
+                                    Url(registrar_url),
+                                    ")",
+                                )
                             else:
-                                registrar_info = escape_markdown_v2(registrar)
+                                registrar_info = Text(registrar)
                     else:
-                        domain_status = f"WHOIS error: {escape_markdown_v2(domain_result['error'])}"
+                        domain_status = Text(
+                            "WHOIS error: ", domain_result["error"]
+                        )
                         if site["domain_expires"]:
                             try:
                                 domain_expiry = datetime.strptime(
@@ -166,9 +166,21 @@ async def status_command(message: Message):
                                 domain_days_left = (
                                     domain_expiry - datetime.now()
                                 ).days
-                                domain_status += f" \\(Last checked: {escape_markdown_v2(site['domain_last_checked'] or 'N/A')}, Expires: {escape_markdown_v2(site['domain_expires'])}\\)"
+                                domain_status = Text(
+                                    domain_status,
+                                    " (Last checked: ",
+                                    site["domain_last_checked"] or "N/A",
+                                    ", Expires: ",
+                                    site["domain_expires"],
+                                    ")",
+                                )
                             except ValueError:
-                                domain_status += f" \\(Last checked: {escape_markdown_v2(site['domain_last_checked'] or 'N/A')}, Invalid date\\)"
+                                domain_status = Text(
+                                    domain_status,
+                                    " (Last checked: ",
+                                    site["domain_last_checked"] or "N/A",
+                                    ", Invalid date)",
+                                )
                                 logger.error(
                                     f"Invalid domain_expires format for {url}: {site['domain_expires']}"
                                 )
@@ -186,25 +198,32 @@ async def status_command(message: Message):
                             f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
                         )
 
-                # Build response with explicit escaping
-                response = (
-                    f"🌐 {escape_markdown_v2(url)}\n"
-                    f"Status: {status_emoji} {escape_markdown_v2(status_result['status'])}\n"
-                    f"--- SSL ---\n"
-                    f"Valid: {site['ssl_valid']}\n"
-                    f"Expires: {escape_markdown_v2(site['ssl_expires'] or 'N/A')}\n"
-                    f"Days Left: {ssl_days_left}\n"
-                    f"--- Domain ---\n"
-                    f"Expires: {domain_status}\n"
-                    f"Days Left: {domain_days_left}\n"
-                    f"Registrar: {escape_markdown_v2(registrar_info)}\n"
+                # Build response with aiogram formatting
+                content = (as_line(Text("🌐 ", url)),)
+                as_line(
+                    Text(
+                        "Status: ", status_emoji, " ", status_result["status"]
+                    )
+                ),
+                as_marked_section(
+                    "--- SSL ---",
+                    as_key_value("Valid: ", str(site["ssl_valid"])),
+                    as_key_value("Expires: ", site["ssl_expires"] or "N/A"),
+                    as_key_value("Days Left: ", str(ssl_days_left)),
+                ),
+                as_marked_section(
+                    "--- Domain ---",
+                    as_key_value("Expires: ", domain_status),
+                    as_key_value("Days Left: ", str(domain_days_left)),
+                    as_key_value("Registrar: ", registrar_info),
                 )
 
                 try:
+                    text, entities = content.render()
                     logger.debug(
-                        f"Sending /status message for {url}:\n{response}"
+                        f"Sending /status message for {url}: text={text}, entities={entities}"
                     )
-                    await message.answer(response, parse_mode="MarkdownV2")
+                    await message.answer(**content.as_kwargs())
                     logger.info(
                         f"Sent /status response for {url} to chat_id={user_id}"
                     )
@@ -250,10 +269,10 @@ async def listsites_command(message: Message):
             logger.info(f"Sent empty /listsites response to chat_id={user_id}")
             return
 
-        response = "Monitored websites:\n\n"
+        content = Text("Monitored websites:\n\n")
         for site in sites:
-            response += f"- {site['url']}\n"
-        await message.answer(response)
+            content += Text("- ", site["url"], "\n")
+        await message.answer(**content.as_kwargs())
         logger.info(
             f"Sent /listsites response with {len(sites)} sites to chat_id={user_id}"
         )
