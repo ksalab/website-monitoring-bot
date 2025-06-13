@@ -27,7 +27,9 @@ def escape_markdown_v2(text: str) -> str:
     Returns:
         str: Escaped text.
     """
-    special_chars = r'!#$%&()*+-.\/:;<=>?@[\]^_`{|}~'
+    if text is None:
+        return "N/A"
+    special_chars = r'._!#$%&*+-=|\:;<>?@[]^{}()~`'
     for char in special_chars:
         text = text.replace(char, f'\\{char}')
     return text
@@ -83,6 +85,9 @@ async def status_command(message: Message):
                         f"Error: Check failed\n"
                         f"--- Domain ---\n"
                         f"Error: Check failed\n"
+                    )
+                    logger.debug(
+                        f"Sending /status message for {url}:\n{response}"
                     )
                     await message.answer(response, parse_mode="MarkdownV2")
                     logger.error(
@@ -183,6 +188,9 @@ async def status_command(message: Message):
                 )
 
                 try:
+                    logger.debug(
+                        f"Sending /status message for {url}:\n{response}"
+                    )
                     await message.answer(response, parse_mode="MarkdownV2")
                     logger.info(
                         f"Sent /status response for {url} to chat_id={user_id}"
