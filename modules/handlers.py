@@ -27,7 +27,7 @@ def escape_markdown_v2(text: str) -> str:
     Returns:
         str: Escaped text.
     """
-    if text is None:
+    if text is None or text == "":
         return "N/A"
     special_chars = r'._!#$%&*+-=|\:;<>?@[]^{}()~`'
     for char in special_chars:
@@ -104,6 +104,13 @@ async def status_command(message: Message):
                     "🟢" if "200" in status_result["status"] else "🔴"
                 )
 
+                # Log fields before building response
+                logger.debug(
+                    f"Building /status for {url}: "
+                    f"url={url}, status={status_result['status']}, "
+                    f"ssl_valid={site['ssl_valid']}, ssl_expires={site['ssl_expires']}"
+                )
+
                 # Always perform WHOIS check for /status
                 parsed_url = urlparse(url)
                 domain = parsed_url.hostname
@@ -112,6 +119,11 @@ async def status_command(message: Message):
                 registrar_info = "Unknown"
                 if domain:
                     domain_result = check_domain_expiration(domain)
+                    logger.debug(
+                        f"WHOIS for {domain}: success={domain_result['success']}, "
+                        f"expires={domain_result['expires']}, registrar={domain_result['registrar']}, "
+                        f"registrar_url={domain_result['registrar_url']}, error={domain_result['error']}"
+                    )
                     if domain_result["success"]:
                         site["domain_expires"] = domain_result["expires"]
                         site["domain_last_checked"] = datetime.now().strftime(
@@ -174,6 +186,7 @@ async def status_command(message: Message):
                             f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
                         )
 
+                # Build response with explicit escaping
                 response = (
                     f"🌐 {escape_markdown_v2(url)}\n"
                     f"Status: {status_emoji} {escape_markdown_v2(status_result['status'])}\n"
@@ -184,7 +197,7 @@ async def status_command(message: Message):
                     f"--- Domain ---\n"
                     f"Expires: {domain_status}\n"
                     f"Days Left: {domain_days_left}\n"
-                    f"Registrar: {registrar_info}\n"
+                    f"Registrar: {escape_markdown_v2(registrar_info)}\n"
                 )
 
                 try:
