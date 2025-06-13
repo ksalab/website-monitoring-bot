@@ -30,6 +30,7 @@ class DomainStatus(TypedDict):
     url: str
     expires: Optional[str]
     error: Optional[str]
+    success: bool
 
 
 @retry(
@@ -145,13 +146,14 @@ def check_domain_expiration(domain: str) -> DomainStatus:
         domain: Domain name to check.
 
     Returns:
-        DomainStatus: Domain expiration information.
+        DomainStatus: Domain expiration information with success status.
     """
     logger.debug(f"Checking domain expiration for {domain}")
     result: DomainStatus = {
         "url": domain,
         "expires": None,
         "error": None,
+        "success": False,
     }
 
     try:
@@ -163,6 +165,7 @@ def check_domain_expiration(domain: str) -> DomainStatus:
         if expiration_date:
             if isinstance(expiration_date, datetime):
                 result["expires"] = expiration_date.strftime(DATE_FORMAT)
+                result["success"] = True
                 logger.info(
                     f"Domain {domain} check successful: Expires={result['expires']}"
                 )

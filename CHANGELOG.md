@@ -5,6 +5,15 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.0.0] - 2025-06-13
+
+### Fixed
+
+- fix(domain): Correct domain expiration handling to update expiry date on successful WHOIS queries
+- fix(status): Always perform WHOIS queries for /status command to ensure up-to-date domain expiration data
+- fix(notifications): Handle WHOIS errors gracefully, showing cached data with error message
+- fix(handlers): Improve /status output to indicate WHOIS errors with last checked date
+
 ## [0.9.0] - 2025-06-10
 
 ### Added
