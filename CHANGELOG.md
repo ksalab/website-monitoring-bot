@@ -5,6 +5,17 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.2.2] - 2025-06-13
+
+### Added
+
+- feat(handlers): Send separate /status messages for each site to isolate errors
+
+### Fixed
+
+- fix(handlers): Correct MarkdownV2 escaping for Registrar hyperlink in /status to handle all special characters
+- fix(handlers): Ensure /status processes each site independently to prevent errors from affecting other sites
+
 ## [1.2.1] - 2025-06-13
 
 ### Fixed
