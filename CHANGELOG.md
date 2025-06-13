@@ -5,6 +5,13 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.2.4] - 2025-06-13
+
+### Fixed
+
+- fix(handlers): Ensure strict MarkdownV2 escaping for all string fields in /status to handle special characters like '.'
+- fix(handlers): Add detailed field-level logging in /status to identify MarkdownV2 issues
+
 ## [1.2.3] - 2025-06-13
 
 ### Fixed
