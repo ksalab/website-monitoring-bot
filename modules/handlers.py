@@ -103,13 +103,28 @@ async def status_command(message: Message):
                             )
                             domain_status = "Invalid date format"
                     # Registrar info
-                    if (
-                        domain_result["registrar"]
-                        and domain_result["registrar_url"]
-                    ):
-                        registrar_info = f"{domain_result['registrar']}: {domain_result['registrar_url']}"
-                    elif domain_result["registrar"]:
-                        registrar_info = domain_result["registrar"]
+                    registrar = domain_result["registrar"]
+                    registrar_url = domain_result["registrar_url"]
+                    if registrar:
+                        if isinstance(registrar_url, list) and registrar_url:
+                            registrar_url = registrar_url[0]
+                        if registrar_url:
+                            # Escape special characters for MarkdownV2
+                            registrar_escaped = (
+                                registrar.replace("_", "\\_")
+                                .replace("*", "\\*")
+                                .replace("[", "\\[")
+                                .replace("`", "\\`")
+                            )
+                            registrar_url_escaped = (
+                                registrar_url.replace("_", "\\_")
+                                .replace("*", "\\*")
+                                .replace("[", "\\[")
+                                .replace("`", "\\`")
+                            )
+                            registrar_info = f"[{registrar_escaped}]({registrar_url_escaped})"
+                        else:
+                            registrar_info = registrar
                 else:
                     domain_status = f"WHOIS error: {domain_result['error']}"
                     if site["domain_expires"]:
@@ -159,7 +174,7 @@ async def status_command(message: Message):
             )
 
         save(user_id, sites)
-        await message.answer(response)
+        await message.answer(response, parse_mode="MarkdownV2")
         logger.info(f"Sent /status response to chat_id={user_id}")
     except Exception as e:
         logger.error(f"/status command failed for user_id={user_id}: {e}")

@@ -5,6 +5,12 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.2.1] - 2025-06-13
+
+### Fixed
+
+- fix(handlers): Correct Registrar display in /status to use hyperlink for registrar_url and handle lists, missing URLs, and missing registrars
+
 ## [1.2.0] - 2025-06-13
 
 ### Added
