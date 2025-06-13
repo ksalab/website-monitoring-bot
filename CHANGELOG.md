@@ -5,6 +5,17 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.3.0] - 2025-06-13
+
+### Added
+
+- feat(handlers): Use aiogram.utils.formatting for /status and /listsites to simplify message formatting with entities
+
+### Fixed
+
+- fix(handlers): Resolve MarkdownV2 parsing errors in /status by replacing manual escaping with aiogram formatting
+- fix(handlers): Improve logging for /status with rendered text and entities
+
 ## [1.2.4] - 2025-06-13
 
 ### Fixed
