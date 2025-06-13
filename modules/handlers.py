@@ -11,6 +11,7 @@ from aiogram.utils.formatting import (
     Bold,
     Url,
     as_line,
+    as_list,
     as_marked_section,
     as_key_value,
 )
@@ -69,14 +70,17 @@ async def status_command(message: Message):
                 if isinstance(status_result, Exception) or isinstance(
                     ssl_result, Exception
                 ):
-                    content = (as_line(Text("🌐 ", url)),)
-                    as_line(Text("Status: 🔴 Error during check")),
-                    as_marked_section(
-                        "--- SSL ---", as_key_value("Error:", "Check failed")
-                    ),
-                    as_marked_section(
-                        "--- Domain ---",
-                        as_key_value("Error:", "Check failed"),
+                    content = as_list(
+                        as_line(Text("🌐 ", url)),
+                        as_line(Text("Status: 🔴 Error during check")),
+                        as_marked_section(
+                            "--- SSL ---",
+                            as_key_value("Error", "Check failed"),
+                        ),
+                        as_marked_section(
+                            "--- Domain ---",
+                            as_key_value("Error", "Check failed"),
+                        ),
                     )
                     logger.debug(
                         f"Sending /status message for {url}: {content.render()}"
@@ -145,12 +149,8 @@ async def status_command(message: Message):
                             ):
                                 registrar_url = registrar_url[0]
                             if registrar_url:
-                                registrar_info = Text(
-                                    "[",
-                                    registrar,
-                                    "](",
-                                    Url(registrar_url),
-                                    ")",
+                                registrar_info = (
+                                    f"[{registrar}]({Url(registrar_url)})",
                                 )
                             else:
                                 registrar_info = Text(registrar)
@@ -199,23 +199,28 @@ async def status_command(message: Message):
                         )
 
                 # Build response with aiogram formatting
-                content = (as_line(Text("🌐 ", url)),)
-                as_line(
-                    Text(
-                        "Status: ", status_emoji, " ", status_result["status"]
-                    )
-                ),
-                as_marked_section(
-                    "--- SSL ---",
-                    as_key_value("Valid: ", str(site["ssl_valid"])),
-                    as_key_value("Expires: ", site["ssl_expires"] or "N/A"),
-                    as_key_value("Days Left: ", str(ssl_days_left)),
-                ),
-                as_marked_section(
-                    "--- Domain ---",
-                    as_key_value("Expires: ", domain_status),
-                    as_key_value("Days Left: ", str(domain_days_left)),
-                    as_key_value("Registrar: ", registrar_info),
+                content = as_list(
+                    as_line(Text("🌐 ", url)),
+                    as_line(
+                        Text(
+                            "Status: ",
+                            status_emoji,
+                            " ",
+                            status_result["status"],
+                        )
+                    ),
+                    as_marked_section(
+                        "--- SSL ---",
+                        as_key_value("Valid", str(site["ssl_valid"])),
+                        as_key_value("Expires", site["ssl_expires"] or "N/A"),
+                        as_key_value("Days Left", str(ssl_days_left)),
+                    ),
+                    as_marked_section(
+                        "--- Domain ---",
+                        as_key_value("Expires", domain_status),
+                        as_key_value("Days Left", str(domain_days_left)),
+                        as_key_value("Registrar", registrar_info),
+                    ),
                 )
 
                 try:

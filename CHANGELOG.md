@@ -5,6 +5,12 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.3.1] - 2025-06-13
+
+### Fixed
+
+- fix(handlers): Correct aiogram.utils.formatting usage in /status to avoid tuple error by unifying content with as_line
+
 ## [1.3.0] - 2025-06-13
 
 ### Added
