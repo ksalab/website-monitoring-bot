@@ -153,12 +153,17 @@ async def check_site_status(
             logger.warning(
                 f"Invalid domain_last_checked format for {url}: {last_checked}"
             )
+            should_check_domain = True
 
     if should_check_domain and domain:
         domain_result = check_domain_expiration(domain)
-        site["domain_expires"] = domain_result["expires"]
-        site["domain_last_checked"] = datetime.now().strftime(DATE_FORMAT)
-        if domain_result["error"]:
+        if domain_result["success"]:
+            site["domain_expires"] = domain_result["expires"]
+            site["domain_last_checked"] = datetime.now().strftime(DATE_FORMAT)
+            logger.info(
+                f"Updated domain info for {url}: Expires={site['domain_expires']}"
+            )
+        else:
             logger.warning(
                 f"Domain expiration check failed for {url}: {domain_result['error']}"
             )

@@ -62,39 +62,50 @@ async def status_command(message: Message):
             site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
             site["ssl_expires"] = ssl_result["expires"]
 
-            # Check domain expiration if not checked recently
+            # Always perform WHOIS check for /status
             parsed_url = urlparse(url)
             domain = parsed_url.hostname
-            last_checked = site.get("domain_last_checked")
-            should_check_domain = True
-
-            if last_checked:
-                try:
-                    last_checked_dt = datetime.strptime(
-                        last_checked, DATE_FORMAT
-                    )
-                    if datetime.now() - last_checked_dt < timedelta(days=1):
-                        should_check_domain = False
-                        logger.debug(
-                            f"Skipping domain check for {url}: Last checked {last_checked}"
-                        )
-                except ValueError:
-                    logger.warning(
-                        f"Invalid domain_last_checked format for {url}: {last_checked}"
-                    )
-
-            if should_check_domain and domain:
+            domain_status = "Unknown"
+            domain_days_left = "N/A"
+            if domain:
                 domain_result = check_domain_expiration(domain)
-                site["domain_expires"] = domain_result["expires"]
-                site["domain_last_checked"] = datetime.now().strftime(
-                    DATE_FORMAT
-                )
-                if domain_result["error"]:
-                    logger.warning(
-                        f"Domain expiration check failed for {url}: {domain_result['error']}"
+                if domain_result["success"]:
+                    site["domain_expires"] = domain_result["expires"]
+                    site["domain_last_checked"] = datetime.now().strftime(
+                        DATE_FORMAT
                     )
+                    domain_status = site["domain_expires"] or "N/A"
+                    if site["domain_expires"]:
+                        try:
+                            domain_expiry = datetime.strptime(
+                                site["domain_expires"], DATE_FORMAT
+                            )
+                            domain_days_left = (
+                                domain_expiry - datetime.now()
+                            ).days
+                        except ValueError:
+                            logger.error(
+                                f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                            )
+                            domain_status = "Invalid date format"
+                else:
+                    domain_status = f"WHOIS error: {domain_result['error']}"
+                    if site["domain_expires"]:
+                        try:
+                            domain_expiry = datetime.strptime(
+                                site["domain_expires"], DATE_FORMAT
+                            )
+                            domain_days_left = (
+                                domain_expiry - datetime.now()
+                            ).days
+                            domain_status += f" (Last checked: {site['domain_last_checked'] or 'N/A'}, Expires: {site['domain_expires']})"
+                        except ValueError:
+                            domain_status += f" (Last checked: {site['domain_last_checked'] or 'N/A'}, Invalid date)"
+                            logger.error(
+                                f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                            )
 
-            # Calculate days left
+            # Calculate SSL days left
             ssl_days_left = "N/A"
             if site["ssl_expires"]:
                 try:
@@ -107,29 +118,18 @@ async def status_command(message: Message):
                         f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
                     )
 
-            domain_days_left = "N/A"
-            if site["domain_expires"]:
-                try:
-                    domain_expiry = datetime.strptime(
-                        site["domain_expires"], DATE_FORMAT
-                    )
-                    domain_days_left = (domain_expiry - datetime.now()).days
-                except ValueError:
-                    logger.error(
-                        f"Invalid domain_expires format for {url}: {site['domain_expires']}"
-                    )
-
             response += (
                 f"🌐 {url}\n"
                 f"Status: {status_result['status']}\n"
                 f"SSL Valid: {site['ssl_valid']}\n"
                 f"SSL Expires: {site['ssl_expires'] or 'N/A'}\n"
                 f"SSL Days Left: {ssl_days_left}\n"
-                f"Domain Expires: {site['domain_expires'] or 'N/A'}\n"
+                f"Domain Expires: {domain_status}\n"
                 f"Domain Days Left: {domain_days_left}\n\n"
             )
             logger.info(
-                f"Status processed for {url}: Status={status_result['status']}, SSL_Expires={site['ssl_expires']}, Domain_Expires={site['domain_expires']}"
+                f"Status processed for {url}: Status={status_result['status']}, "
+                f"SSL_Expires={site['ssl_expires']}, Domain_Expires={domain_status}"
             )
 
         save(sites)
