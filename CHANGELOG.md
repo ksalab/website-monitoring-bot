@@ -5,12 +5,25 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.1.0] - 2025-06-13
+
+### Added
+
+- feat(storage): Implement per-user site files (`data/<user_id>.json`)
+- feat(notifications): Update monitoring to handle sites for all users
+- feat(handlers): Pass user_id to load/save sites in `/status` and `/listsites`
+
+### Removed
+
+- feat(storage): Remove usage of `data/sites.json`
+- feat(config): Remove SITES_PATH constant
+
 ## [1.0.0] - 2025-06-13
 
 ### Fixed
 
 - fix(domain): Correct domain expiration handling to update expiry date on successful WHOIS queries
-- fix(status): Always perform WHOIS queries for /status command to ensure up-to-date domain expiration data
+- fix(status): Always perform WHOIS queries for `/status` command to ensure up-to-date domain expiration data
 - fix(notifications): Handle WHOIS errors gracefully, showing cached data with error message
 - fix(handlers): Improve /status output to indicate WHOIS errors with last checked date
 
@@ -18,7 +31,7 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ### Added
 
-- feat(refactor): split code into modules under modules/ (config, logging, storage, checks, notifications, handlers)
+- feat(refactor): split code into modules under `modules/` (config, logging, storage, checks, notifications, handlers)
 - feat(refactor): improve code readability with PEP 8 and best practices
 - refactor(config): move constants to config module
 - refactor(logging): centralize logging setup
@@ -31,7 +44,7 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ### Added
 
-- feat(logging): move logs to logs/ directory
+- feat(logging): move logs to `logs/` directory
 - feat(logging): implement log rotation with compression (.gz)
 - feat(logging): enhance log informativeness for operations
 
@@ -43,7 +56,7 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ### Added
 
-- feat(commands): add /listsites command to list monitored websites
+- feat(commands): add `/listsites` command to list monitored websites
 
 ### Fixed
 
@@ -75,7 +88,7 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ### Added
 
-- feat(sites): move sites.json to /data and extend format with ssl_valid, ssl_expires, domain_expires
+- feat(sites): move sites.json to `/data` and extend format with ssl_valid, ssl_expires, domain_expires
 - feat(sites): update sites.json with check results
 
 ## [0.2.0] - 2025-06-11
@@ -90,7 +103,7 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 - Initial implementation of the Telegram bot for website monitoring.
 - Support for HTTP status and SSL certificate checks.
-- Telegram commands: /start, /status.
-- Configuration via .env and sites.json.
-- Logging to bot.log and console.
+- Telegram commands: `/start`, `/status`.
+- Configuration via `.env` and `sites.json`.
+- Logging to `bot.log` and console.
 

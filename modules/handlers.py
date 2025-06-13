@@ -30,11 +30,14 @@ async def start_command(message: Message):
 @router.message(Command("status"))
 async def status_command(message: Message):
     """Handle /status command to report current status of all websites."""
-    logger.info("Received /status command from chat_id=%s", message.chat.id)
+    user_id = message.chat.id
+    logger.info("Received /status command from chat_id=%s", user_id)
     try:
-        sites = load_sites()
+        sites = load_sites(user_id)
         response = "Current website statuses:\n\n"
-        logger.info(f"Processing status for {len(sites)} sites")
+        logger.info(
+            f"Processing status for {len(sites)} sites for user_id={user_id}"
+        )
 
         tasks = []
         for site in sites:
@@ -132,11 +135,11 @@ async def status_command(message: Message):
                 f"SSL_Expires={site['ssl_expires']}, Domain_Expires={domain_status}"
             )
 
-        save(sites)
+        save(user_id, sites)
         await message.answer(response)
-        logger.info(f"Sent /status response to chat_id={message.chat.id}")
+        logger.info(f"Sent /status response to chat_id={user_id}")
     except Exception as e:
-        logger.error(f"/status command failed: {e}")
+        logger.error(f"/status command failed for user_id={user_id}: {e}")
         await message.answer(
             "Error retrieving statuses. Check logs for details."
         )
@@ -145,14 +148,13 @@ async def status_command(message: Message):
 @router.message(Command("listsites"))
 async def listsites_command(message: Message):
     """Handle /listsites command to list all monitored websites."""
-    logger.info("Received /listsites command from chat_id=%s", message.chat.id)
+    user_id = message.chat.id
+    logger.info("Received /listsites command from chat_id=%s", user_id)
     try:
-        sites = load_sites()
+        sites = load_sites(user_id)
         if not sites:
             await message.answer("No sites are currently monitored.")
-            logger.info(
-                "Sent empty /listsites response to chat_id=%s", message.chat.id
-            )
+            logger.info(f"Sent empty /listsites response to chat_id={user_id}")
             return
 
         response = "Monitored websites:\n\n"
@@ -160,10 +162,10 @@ async def listsites_command(message: Message):
             response += f"- {site['url']}\n"
         await message.answer(response)
         logger.info(
-            f"Sent /listsites response with {len(sites)} sites to chat_id={message.chat.id}"
+            f"Sent /listsites response with {len(sites)} sites to chat_id={user_id}"
         )
     except Exception as e:
-        logger.error(f"/listsites command failed: {e}")
+        logger.error(f"/listsites command failed for user_id={user_id}: {e}")
         await message.answer(
             "Error retrieving site list. Check logs for details."
         )
