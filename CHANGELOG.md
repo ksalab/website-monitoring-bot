@@ -5,6 +5,12 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.3.2] - 2025-06-13
+
+### Fixed
+
+- fix(handlers): Correct registrar_info hyperlink in /status to display registrar name as clickable link using text_link entity
+
 ## [1.3.1] - 2025-06-13
 
 ### Fixed
