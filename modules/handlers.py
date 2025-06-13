@@ -149,8 +149,14 @@ async def status_command(message: Message):
                             ):
                                 registrar_url = registrar_url[0]
                             if registrar_url:
-                                registrar_info = (
-                                    f"[{registrar}]({Url(registrar_url)})",
+                                registrar_info = Text(
+                                    registrar,
+                                    entities=[
+                                        {
+                                            "type": "text_link",
+                                            "url": registrar_url,
+                                        }
+                                    ],
                                 )
                             else:
                                 registrar_info = Text(registrar)
@@ -266,7 +272,7 @@ async def status_command(message: Message):
 async def listsites_command(message: Message):
     """Handle /listsites command to list all monitored websites."""
     user_id = message.chat.id
-    logger.info("Received /listsites command from chat_id=%s", user_id)
+    logger.info("Received /listsites command from chat_id=%s", message.chat.id)
     try:
         sites = load_sites(user_id)
         if not sites:
