@@ -1,11 +1,12 @@
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from urllib.parse import urlparse
-from .storage import SiteConfig
+from .storage import SiteConfig, load_sites, save
 from .checks import (
     WebsiteStatus,
     SSLStatus,
@@ -13,7 +14,7 @@ from .checks import (
     check_ssl_certificate,
     check_domain_expiration,
 )
-from .config import DATE_FORMAT
+from .config import DATA_DIR, DATE_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,31 @@ def get_nearest_threshold(
     return None
 
 
+def get_user_ids() -> List[int]:
+    """Get list of user IDs based on files in data/ directory.
+
+    Returns:
+        List[int]: List of user IDs.
+    """
+    logger.debug(f"Scanning {DATA_DIR} for user site files")
+    user_ids = []
+    if not os.path.exists(DATA_DIR):
+        logger.info(f"Data directory {DATA_DIR} does not exist")
+        return user_ids
+
+    for filename in os.listdir(DATA_DIR):
+        if filename.endswith(".json"):
+            try:
+                user_id = int(filename[:-5])  # Remove .json
+                user_ids.append(user_id)
+            except ValueError:
+                logger.warning(f"Invalid filename in data/: {filename}")
+    logger.info(f"Found {len(user_ids)} user IDs: {user_ids}")
+    return user_ids
+
+
 async def check_site_status(
+    user_id: int,
     site: SiteConfig,
     config: Dict[str, any],
     bot: Bot,
@@ -85,13 +110,14 @@ async def check_site_status(
     """Check site status and send notifications if needed.
 
     Args:
+        user_id: Telegram user or chat ID.
         site: Site configuration.
         config: Bot configuration.
         bot: Telegram Bot instance.
         last_status: Dictionary storing last known status.
     """
     url = site["url"]
-    logger.debug(f"Processing site: {url}")
+    logger.debug(f"Processing site {url} for user_id={user_id}")
 
     status_result = await check_website_status(url)
     ssl_result = await check_ssl_certificate(url)
@@ -99,11 +125,13 @@ async def check_site_status(
     if isinstance(status_result, Exception) or isinstance(
         ssl_result, Exception
     ):
-        logger.error(f"Error checking {url}: {status_result or ssl_result}")
+        logger.error(
+            f"Error checking {url} for user_id={user_id}: {status_result or ssl_result}"
+        )
         return
 
     logger.info(
-        f"Check completed for {url}: Status={status_result['status']}, SSL={ssl_result['ssl_status']}"
+        f"Check completed for {url} (user_id={user_id}): Status={status_result['status']}, SSL={ssl_result['ssl_status']}"
     )
 
     # Update SSL data
@@ -132,7 +160,7 @@ async def check_site_status(
                 site["ssl_notifications"].append(nearest_threshold)
         except ValueError:
             logger.error(
-                f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
+                f"Invalid ssl_expires format for {url} (user_id={user_id}): {site['ssl_expires']}"
             )
 
     # Check domain expiration if not checked recently
@@ -147,11 +175,11 @@ async def check_site_status(
             if datetime.now() - last_checked_dt < timedelta(days=1):
                 should_check_domain = False
                 logger.debug(
-                    f"Skipping domain check for {url}: Last checked {last_checked}"
+                    f"Skipping domain check for {url} (user_id={user_id}): Last checked {last_checked}"
                 )
         except ValueError:
             logger.warning(
-                f"Invalid domain_last_checked format for {url}: {last_checked}"
+                f"Invalid domain_last_checked format for {url} (user_id={user_id}): {last_checked}"
             )
             should_check_domain = True
 
@@ -161,11 +189,11 @@ async def check_site_status(
             site["domain_expires"] = domain_result["expires"]
             site["domain_last_checked"] = datetime.now().strftime(DATE_FORMAT)
             logger.info(
-                f"Updated domain info for {url}: Expires={site['domain_expires']}"
+                f"Updated domain info for {url} (user_id={user_id}): Expires={site['domain_expires']}"
             )
         else:
             logger.warning(
-                f"Domain expiration check failed for {url}: {domain_result['error']}"
+                f"Domain expiration check failed for {url} (user_id={user_id}): {domain_result['error']}"
             )
 
     # Check domain expiration warnings
@@ -192,11 +220,12 @@ async def check_site_status(
                 site["domain_notifications"].append(nearest_threshold)
         except ValueError:
             logger.error(
-                f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                f"Invalid domain_expires format for {url} (user_id={user_id}): {site['domain_expires']}"
             )
 
     current_status = (status_result, ssl_result)
-    last_site_status = last_status.get(url)
+    status_key = f"{user_id}:{url}"  # Unique key per user and URL
+    last_site_status = last_status.get(status_key)
 
     if last_site_status != current_status:
         try:
@@ -209,7 +238,7 @@ async def check_site_status(
                 )
                 await send_notification(bot, config, message)
                 logger.warning(
-                    f"Website issue notification sent for {url}: Status={status_result['status']}, Error={status_result['error']}"
+                    f"Website issue notification sent for {url} (user_id={user_id}): Status={status_result['status']}, Error={status_result['error']}"
                 )
 
             if ssl_result["error"] or ssl_result["ssl_status"] != "valid":
@@ -222,19 +251,21 @@ async def check_site_status(
                 )
                 await send_notification(bot, config, message)
                 logger.warning(
-                    f"SSL issue notification sent for {url}: SSL_Status={ssl_result['ssl_status']}, Error={ssl_result['error']}"
+                    f"SSL issue notification sent for {url} (user_id={user_id}): SSL_Status={ssl_result['ssl_status']}, Error={ssl_result['error']}"
                 )
 
-            last_status[url] = current_status
-            logger.debug(f"Updated last status for {url}")
+            last_status[status_key] = current_status
+            logger.debug(f"Updated last status for {url} (user_id={user_id})")
         except TelegramBadRequest as e:
-            logger.error(f"Failed to send notification for {url}: {e}")
+            logger.error(
+                f"Failed to send notification for {url} (user_id={user_id}): {e}"
+            )
 
 
 async def monitor_websites(
     bot: Bot, config: Dict[str, any], interval: int
 ) -> None:
-    """Periodically monitor websites and send notifications.
+    """Periodically monitor websites for all users and send notifications.
 
     Args:
         bot: Telegram Bot instance.
@@ -243,9 +274,6 @@ async def monitor_websites(
     """
     logger.info("Starting website monitoring task")
     try:
-        from .storage import load_sites
-
-        sites = load_sites()
         last_status: Dict[str, Tuple[WebsiteStatus, SSLStatus]] = {}
         logger.debug(
             f"Monitoring configuration: interval={interval}s, domain_thresholds={config['DOMAIN_EXPIRY_THRESHOLD']}, ssl_thresholds={config['SSL_EXPIRY_THRESHOLD']}"
@@ -255,13 +283,33 @@ async def monitor_websites(
         return
 
     while True:
-        logger.info(f"Starting check cycle for {len(sites)} sites")
-        for site in sites:
-            await check_site_status(site, config, bot, last_status)
+        logger.info("Starting check cycle for all users")
+        user_ids = get_user_ids()
+        if not user_ids:
+            logger.info("No users found, skipping check cycle")
+            await asyncio.sleep(interval)
+            continue
 
-        from .storage import save
+        for user_id in user_ids:
+            try:
+                sites = load_sites(user_id)
+                if not sites:
+                    logger.debug(f"No sites to monitor for user_id={user_id}")
+                    continue
 
-        save(sites)
+                logger.info(
+                    f"Checking {len(sites)} sites for user_id={user_id}"
+                )
+                for site in sites:
+                    await check_site_status(
+                        user_id, site, config, bot, last_status
+                    )
+
+                save(user_id, sites)
+            except Exception as e:
+                logger.error(
+                    f"Error processing sites for user_id={user_id}: {e}"
+                )
 
         logger.info(f"Check cycle completed, sleeping for {interval} seconds")
         await asyncio.sleep(interval)

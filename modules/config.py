@@ -7,9 +7,7 @@ logger = logging.getLogger(__name__)
 
 # Constants
 ENV_PATH = os.path.join(os.path.dirname(__file__), "..", ".env")
-SITES_PATH = os.path.join(
-    os.path.dirname(__file__), "..", "data", "sites.json"
-)
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "data")
 LOGS_DIR = os.path.join(os.path.dirname(__file__), "..", "logs")
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 CERT_DATE_FORMAT = "%b %d %H:%M:%S %Y %Z"
