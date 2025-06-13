@@ -11,5 +11,6 @@ Functions:
   ✔ check domain expire date @done(25-06-12 18:09)
   ✔ notification events @done(25-06-12 18:10)
   ✔ list existing sites for checking @done(25-06-12 18:28)
-  - show domain registrant
+  ✔ show domain registrant @done(25-06-13 17:13)
+  - a separate message for each site
 
