@@ -55,7 +55,14 @@ async def status_command(message: Message):
             if isinstance(status_result, Exception) or isinstance(
                 ssl_result, Exception
             ):
-                response += f"🌐 {url}\nError during check\n\n"
+                response += (
+                    f"🌐 {url}\n"
+                    f"Status: 🔴 Error during check\n"
+                    f"--- SSL ---\n"
+                    f"Error: Check failed\n"
+                    f"--- Domain ---\n"
+                    f"Error: Check failed\n\n"
+                )
                 logger.error(
                     f"Error checking {url} for /status command: {status_result or ssl_result}"
                 )
@@ -65,11 +72,15 @@ async def status_command(message: Message):
             site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
             site["ssl_expires"] = ssl_result["expires"]
 
+            # Determine status emoji
+            status_emoji = "🟢" if "200" in status_result["status"] else "🔴"
+
             # Always perform WHOIS check for /status
             parsed_url = urlparse(url)
             domain = parsed_url.hostname
             domain_status = "Unknown"
             domain_days_left = "N/A"
+            registrar_info = "Unknown"
             if domain:
                 domain_result = check_domain_expiration(domain)
                 if domain_result["success"]:
@@ -91,6 +102,14 @@ async def status_command(message: Message):
                                 f"Invalid domain_expires format for {url}: {site['domain_expires']}"
                             )
                             domain_status = "Invalid date format"
+                    # Registrar info
+                    if (
+                        domain_result["registrar"]
+                        and domain_result["registrar_url"]
+                    ):
+                        registrar_info = f"{domain_result['registrar']}: {domain_result['registrar_url']}"
+                    elif domain_result["registrar"]:
+                        registrar_info = domain_result["registrar"]
                 else:
                     domain_status = f"WHOIS error: {domain_result['error']}"
                     if site["domain_expires"]:
@@ -123,16 +142,20 @@ async def status_command(message: Message):
 
             response += (
                 f"🌐 {url}\n"
-                f"Status: {status_result['status']}\n"
-                f"SSL Valid: {site['ssl_valid']}\n"
-                f"SSL Expires: {site['ssl_expires'] or 'N/A'}\n"
-                f"SSL Days Left: {ssl_days_left}\n"
-                f"Domain Expires: {domain_status}\n"
-                f"Domain Days Left: {domain_days_left}\n\n"
+                f"Status: {status_emoji} {status_result['status']}\n"
+                f"--- SSL ---\n"
+                f"Valid: {site['ssl_valid']}\n"
+                f"Expires: {site['ssl_expires'] or 'N/A'}\n"
+                f"Days Left: {ssl_days_left}\n"
+                f"--- Domain ---\n"
+                f"Expires: {domain_status}\n"
+                f"Days Left: {domain_days_left}\n"
+                f"Registrar: {registrar_info}\n\n"
             )
             logger.info(
                 f"Status processed for {url}: Status={status_result['status']}, "
-                f"SSL_Expires={site['ssl_expires']}, Domain_Expires={domain_status}"
+                f"SSL_Expires={site['ssl_expires']}, Domain_Expires={domain_status}, "
+                f"Registrar={registrar_info}"
             )
 
         save(user_id, sites)
