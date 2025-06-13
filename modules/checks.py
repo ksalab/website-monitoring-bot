@@ -29,6 +29,8 @@ class SSLStatus(TypedDict):
 class DomainStatus(TypedDict):
     url: str
     expires: Optional[str]
+    registrar: Optional[str]
+    registrar_url: Optional[str]
     error: Optional[str]
     success: bool
 
@@ -140,18 +142,20 @@ async def check_ssl_certificate(url: str) -> SSLStatus:
 
 
 def check_domain_expiration(domain: str) -> DomainStatus:
-    """Check domain expiration date using WHOIS.
+    """Check domain expiration date and registrar using WHOIS.
 
     Args:
         domain: Domain name to check.
 
     Returns:
-        DomainStatus: Domain expiration information with success status.
+        DomainStatus: Domain expiration, registrar, and error information.
     """
     logger.debug(f"Checking domain expiration for {domain}")
     result: DomainStatus = {
         "url": domain,
         "expires": None,
+        "registrar": None,
+        "registrar_url": None,
         "error": None,
         "success": False,
     }
@@ -166,8 +170,10 @@ def check_domain_expiration(domain: str) -> DomainStatus:
             if isinstance(expiration_date, datetime):
                 result["expires"] = expiration_date.strftime(DATE_FORMAT)
                 result["success"] = True
+                result["registrar"] = w.registrar
+                result["registrar_url"] = w.registrar_url
                 logger.info(
-                    f"Domain {domain} check successful: Expires={result['expires']}"
+                    f"Domain {domain} check successful: Expires={result['expires']}, Registrar={result['registrar']}, URL={result['registrar_url']}"
                 )
             else:
                 result["error"] = "Invalid expiration date format"
