@@ -4,21 +4,43 @@ A Telegram bot that monitors website availability and SSL certificate status, se
 
 ## Features
 
-- Monitors website HTTP status codes (e.g., 200 OK, 404 Not Found).
-- Checks SSL certificate validity and expiration dates.
-- Sends alerts to a Telegram group (with optional topic) when a website is down or has SSL issues.
-- Supports periodic checks with configurable intervals.
-- Provides a `/status` command to view current website statuses.
-- Logs monitoring activity to a file (`bot.log`) and console.
+- HTTP Status Monitoring: Checks website availability (e.g., `200 OK`, `down`).
+- SSL Certificate Monitoring: Tracks SSL validity, expiration dates, and remaining days.
+- Domain Expiration Monitoring: Retrieves domain expiration dates via WHOIS and calculates remaining days.
+- Per-User Configuration: Stores monitored sites in `data/<user_id>.json` for each Telegram user.
+- Formatted Status Reports: Sends detailed `/status` messages with emojis (🟢/🔴) and clickable registrar links.
+- Commands:
+  - `/start`: Initializes the bot and displays a welcome message.
+  - `/status`: Reports the current status of all monitored websites, including HTTP, SSL, and domain details.
+  - `/listsites`: Lists all websites currently monitored for the user.
+- Logging: Detailed logs with rotation and compression in `logs/bot.log`.
+- Error Handling: Gracefully handles WHOIS errors, showing cached data with last-checked timestamps.
+
+Example `/status` Output
+
+```sh
+🌐 https://ksalab.xyz
+Status: 🟢 200 OK
+--- SSL ---
+Valid: True
+Expires: 2025-07-16 10:29:32
+Days Left: 32
+--- Domain ---
+Expires: 2027-08-16 23:59:59
+Days Left: 794
+Registrar: GoDaddy.com, LLC
+```
+
+Note: `GoDaddy.com, LLC` is a clickable link to the registrar's website.
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.8 or higher
-- `git` installed
 - A Telegram bot token (obtained via @BotFather)
 - A Telegram group ID and optional topic ID
+- Dependencies listed in `requirements.txt`
 
 ### Steps
 
@@ -55,14 +77,22 @@ A Telegram bot that monitors website availability and SSL certificate status, se
   - `TOPIC_ID`: The topic ID within the group (optional).
   - `CHECK_INTERVAL`: Time between checks (default: 3600 seconds = 1 hour).
 
-5. Configure sites.json:
+5. Configure monitored sites:
 
-Create or edit `sites.json` to list the websites to monitor:
+- Add websites to `data/<user_id>.json` manually or via bot commands (if implemented).
+- Example `data/123456789.json`:
 
   ```json
   [
-      {"url": "https://example.com"},
-      {"url": "https://another-site.org"}
+    {
+      "url": "https://ksalab.xyz",
+      "ssl_valid": null,
+      "ssl_expires": null,
+      "domain_expires": null,
+      "domain_last_checked": null,
+      "domain_notifications": [],
+      "ssl_notifications": []
+    }
   ]
   ```
 
@@ -72,38 +102,53 @@ Create or edit `sites.json` to list the websites to monitor:
   python bot.py
   ```
 
-## Configuration
+## Project Structure
 
-- Bot Commands:
+```plain
+website-monitoring-bot/
+├── bot.py              # Main bot entry point
+├── modules/           # Core bot modules
+│   ├── checks.py      # HTTP, SSL, and WHOIS check functions
+│   ├── config.py      # Configuration constants
+│   ├── handlers.py    # Telegram command handlers
+│   ├── logging.py     # Logging setup
+│   ├── notifications.py # Notification logic
+│   └── storage.py     # Data storage functions
+├── data/              # User-specific site configurations (<user_id>.json)
+├── logs/              # Log files (bot.log, rotated with .gz)
+├── .env               # Environment variables
+├── CHANGELOG.md       # Project changelog
+├── README.md          # This file
+├── requirements.txt   # Python dependencies
+└── VERSION            # Current version (1.3.2)
+```
 
-  - `/start`: Initializes the bot and displays a welcome message.
-  - `/status`: Returns the current status of all monitored websites, including HTTP status and SSL certificate details.
+## Dependencies
 
-- Notifications:
+- `aiogram==3.20.0.post0`: Telegram bot framework
+- `python-whois`: WHOIS queries for domain expiration
+- `requests`: HTTP status checks
+- `pyOpenSSL`: SSL certificate validation
+- `python-dotenv`: Environment variable management
+- See `requirements.txt` for full list.
 
-  - The bot sends alerts to the configured Telegram group when:
-    - A website returns a non-200 HTTP status.
-    - An SSL certificate is invalid or expired.
+## Changelog
 
-- Logging:
-
-  - Logs are written to bot.log and displayed in the console.
-  - Logs include website check results, command executions, and errors.
-
-## Example Usage
-
-1. Add the bot to your Telegram group and make it an admin.
-2. Send `/start` to verify the bot is running.
-3. Use `/status` to check website statuses.
-4. The bot will automatically notify the group if issues are detected.
+See in [CHANGELOG.md](./CHANGELOG.md)
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
+
+- Fork the repository.
+- Create a feature branch (git checkout -b feature/your-feature).
+- Commit changes (git commit -m "Add your feature").
+- Push to the branch (git push origin feature/your-feature).
+- Open a Pull Request.
 
 ## Contact
 

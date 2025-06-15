@@ -2,10 +2,15 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 from aiogram import Router
-from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.filters import Command, CommandStart
+from aiogram.types import (
+    Message,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    CallbackQuery,
+)
 from aiogram.exceptions import TelegramBadRequest
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 from aiogram.utils.formatting import (
     Text,
     Bold,
@@ -27,13 +32,13 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-@router.message(Command("start"))
+@router.message(CommandStart())
 async def start_command(message: Message):
     """Handle /start command."""
     logger.info("Received /start command from chat_id=%s", message.chat.id)
     await message.answer(
         "Website Monitoring Bot started!\n"
-        "Use /status to check current website statuses or /listsites to list monitored sites."
+        "Use /status to check current website statuses, /listsites to list monitored sites, or /addsite <url> to add a new site."
     )
 
 
@@ -272,18 +277,32 @@ async def status_command(message: Message):
 async def listsites_command(message: Message):
     """Handle /listsites command to list all monitored websites."""
     user_id = message.chat.id
-    logger.info("Received /listsites command from chat_id=%s", message.chat.id)
+    logger.info("Received /listsites command from chat_id=%s", user_id)
     try:
         sites = load_sites(user_id)
         if not sites:
-            await message.answer("No sites are currently monitored.")
+            await message.answer(
+                "No sites are currently monitored. Use /addsite <url> to add a new site."
+            )
             logger.info(f"Sent empty /listsites response to chat_id={user_id}")
             return
 
         content = Text("Monitored websites:\n\n")
         for site in sites:
             content += Text("- ", site["url"], "\n")
-        await message.answer(**content.as_kwargs())
+
+        # Add inline button
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="Add site", callback_data="add_site"
+                    )
+                ]
+            ]
+        )
+
+        await message.answer(**content.as_kwargs(), reply_markup=keyboard)
         logger.info(
             f"Sent /listsites response with {len(sites)} sites to chat_id={user_id}"
         )
@@ -292,3 +311,96 @@ async def listsites_command(message: Message):
         await message.answer(
             "Error retrieving site list. Check logs for details."
         )
+
+
+@router.callback_query(lambda c: c.data == "add_site")
+async def add_site_callback(callback_query: CallbackQuery):
+    """Handle 'Add site' button callback."""
+    logger.info(
+        f"Received add_site callback from user_id={callback_query.from_user.id}"
+    )
+    await callback_query.message.answer(
+        "Please send the command /addsite <url> to add a new site (e.g., /addsite https://example.com)."
+    )
+    await callback_query.answer()
+
+
+@router.message(Command("addsite"))
+async def addsite_command(message: Message):
+    """Handle /addsite command to add a new website to monitoring."""
+    user_id = message.chat.id
+    logger.info("Received /addsite command from chat_id=%s", user_id)
+
+    # Extract URL from command
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer(
+            "Please provide a URL (e.g., /addsite https://example.com)."
+        )
+        logger.info(
+            f"Invalid /addsite command from chat_id={user_id}: No URL provided"
+        )
+        return
+
+    url = args[1].strip()
+
+    # Validate URL
+    try:
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme in ["http", "https"]:
+            await message.answer("Invalid URL: Scheme must be http or https.")
+            logger.info(
+                f"Invalid /addsite URL from chat_id={user_id}: {url} (invalid scheme)"
+            )
+            return
+        if not parsed_url.netloc:
+            await message.answer("Invalid URL: Missing domain name.")
+            logger.info(
+                f"Invalid /addsite URL from chat_id={user_id}: {url} (missing netloc)"
+            )
+            return
+
+        # Normalize URL (ensure scheme and netloc are present)
+        normalized_url = urlunparse(
+            (
+                parsed_url.scheme,
+                parsed_url.netloc,
+                parsed_url.path or '/',
+                '',
+                '',
+                '',
+            )
+        )
+
+        # Load existing sites
+        sites = load_sites(user_id)
+
+        # Check for duplicates
+        if any(site["url"] == normalized_url for site in sites):
+            await message.answer(
+                f"Site {normalized_url} is already being monitored."
+            )
+            logger.info(
+                f"Duplicate /addsite URL from chat_id={user_id}: {normalized_url}"
+            )
+            return
+
+        # Add new site
+        new_site = {
+            "url": normalized_url,
+            "ssl_valid": None,
+            "ssl_expires": None,
+            "domain_expires": None,
+            "domain_last_checked": None,
+            "domain_notifications": [],
+            "ssl_notifications": [],
+        }
+        sites.append(new_site)
+        save(user_id, sites)
+
+        await message.answer(f"Site {normalized_url} added to monitoring.")
+        logger.info(f"Added site {normalized_url} for chat_id={user_id}")
+
+    except Exception as e:
+        logger.error(f"Error processing /addsite for chat_id={user_id}: {e}")
+        await message.answer("Error adding site. Check logs for details.")
