@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-# Определение FSM для добавления сайта
+# Define FSM for adding a site
 class AddSiteState(StatesGroup):
     url = State()
 
@@ -56,11 +56,13 @@ async def status_command(message: Message):
         sites = load_sites(user_id)
         if not sites:
             await message.answer("No sites are currently monitored.")
-            logger.info(f"Sent empty /status response to chat_id={user_id}")
+            logger.info("Sent empty /status response to chat_id=%s", user_id)
             return
 
         logger.info(
-            f"Processing status for {len(sites)} sites for user_id={user_id}"
+            "Processing status for %d sites for user_id=%s",
+            len(sites),
+            user_id,
         )
 
         tasks = []
@@ -93,11 +95,15 @@ async def status_command(message: Message):
                         ),
                     )
                     logger.debug(
-                        f"Sending /status message for {url}: {content.render()}"
+                        "Sending /status message for %s: %s",
+                        url,
+                        content.render(),
                     )
                     await message.answer(**content.as_kwargs())
                     logger.error(
-                        f"Error checking {url} for /status command: {status_result or ssl_result}"
+                        "Error checking %s for /status command: %s",
+                        url,
+                        status_result or ssl_result,
                     )
                     continue
 
@@ -112,9 +118,12 @@ async def status_command(message: Message):
 
                 # Log fields before building response
                 logger.debug(
-                    f"Building /status for {url}: "
-                    f"url={url}, status={status_result['status']}, "
-                    f"ssl_valid={site['ssl_valid']}, ssl_expires={site['ssl_expires']}"
+                    "Building /status for %s: url=%s, status=%s, ssl_valid=%s, ssl_expires=%s",
+                    url,
+                    url,
+                    status_result["status"],
+                    site["ssl_valid"],
+                    site["ssl_expires"],
                 )
 
                 # Always perform WHOIS check for /status
@@ -126,9 +135,13 @@ async def status_command(message: Message):
                 if domain:
                     domain_result = check_domain_expiration(domain)
                     logger.debug(
-                        f"WHOIS for {domain}: success={domain_result['success']}, "
-                        f"expires={domain_result['expires']}, registrar={domain_result['registrar']}, "
-                        f"registrar_url={domain_result['registrar_url']}, error={domain_result['error']}"
+                        "WHOIS for %s: success=%s, expires=%s, registrar=%s, registrar_url=%s, error=%s",
+                        domain,
+                        domain_result["success"],
+                        domain_result["expires"],
+                        domain_result["registrar"],
+                        domain_result["registrar_url"],
+                        domain_result["error"],
                     )
                     if domain_result["success"]:
                         site["domain_expires"] = domain_result["expires"]
@@ -146,7 +159,9 @@ async def status_command(message: Message):
                                 ).days
                             except ValueError:
                                 logger.error(
-                                    f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                                    "Invalid domain_expires format for %s: %s",
+                                    url,
+                                    site["domain_expires"],
                                 )
                                 domain_status = "Invalid date format"
                         # Registrar info
@@ -198,7 +213,9 @@ async def status_command(message: Message):
                                     ", Invalid date)",
                                 )
                                 logger.error(
-                                    f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                                    "Invalid domain_expires format for %s: %s",
+                                    url,
+                                    site["domain_expires"],
                                 )
 
                 # Calculate SSL days left
@@ -211,7 +228,9 @@ async def status_command(message: Message):
                         ssl_days_left = (ssl_expiry - datetime.now()).days
                     except ValueError:
                         logger.error(
-                            f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
+                            "Invalid ssl_expires format for %s: %s",
+                            url,
+                            site["ssl_expires"],
                         )
 
                 # Build response with aiogram formatting
@@ -242,29 +261,43 @@ async def status_command(message: Message):
                 try:
                     text, entities = content.render()
                     logger.debug(
-                        f"Sending /status message for {url}: text={text}, entities={entities}"
+                        "Sending /status message for %s: text=%s, entities=%s",
+                        url,
+                        text,
+                        entities,
                     )
                     await message.answer(**content.as_kwargs())
                     logger.info(
-                        f"Sent /status response for {url} to chat_id={user_id}"
+                        "Sent /status response for %s to chat_id=%s",
+                        url,
+                        user_id,
                     )
                 except TelegramBadRequest as e:
                     logger.error(
-                        f"Failed to send /status message for {url} to chat_id={user_id}: {e}"
+                        "Failed to send /status message for %s to chat_id=%s: %s",
+                        url,
+                        user_id,
+                        e,
                     )
                     await message.answer(
                         f"Error sending status for {url}. Check logs for details."
                     )
 
                 logger.info(
-                    f"Status processed for {url}: Status={status_result['status']}, "
-                    f"SSL_Expires={site['ssl_expires']}, Domain_Expires={domain_status}, "
-                    f"Registrar={registrar_info}"
+                    "Status processed for %s: Status=%s, SSL_Expires=%s, Domain_Expires=%s, Registrar=%s",
+                    url,
+                    status_result["status"],
+                    site["ssl_expires"],
+                    domain_status,
+                    registrar_info,
                 )
 
             except Exception as e:
                 logger.error(
-                    f"Error processing status for {url} for user_id={user_id}: {e}"
+                    "Error processing status for %s for user_id=%s: %s",
+                    url,
+                    user_id,
+                    e,
                 )
                 await message.answer(
                     f"Error processing status for {url}. Check logs for details."
@@ -272,7 +305,7 @@ async def status_command(message: Message):
 
         save(user_id, sites)
     except Exception as e:
-        logger.error(f"/status command failed for user_id={user_id}: {e}")
+        logger.error("/status command failed for user_id=%s: %s", user_id, e)
         await message.answer(
             "Error retrieving statuses. Check logs for details."
         )
@@ -289,7 +322,9 @@ async def listsites_command(message: Message):
             await message.answer(
                 "No sites are currently monitored. Use /addsite <url> to add a new site."
             )
-            logger.info(f"Sent empty /listsites response to chat_id={user_id}")
+            logger.info(
+                "Sent empty /listsites response to chat_id=%s", user_id
+            )
             return
 
         content = Text("Monitored websites:\n\n")
@@ -309,10 +344,14 @@ async def listsites_command(message: Message):
 
         await message.answer(**content.as_kwargs(), reply_markup=keyboard)
         logger.info(
-            f"Sent /listsites response with {len(sites)} sites to chat_id={user_id}"
+            "Sent /listsites response with %d sites to chat_id=%s",
+            len(sites),
+            user_id,
         )
     except Exception as e:
-        logger.error(f"/listsites command failed for user_id={user_id}: {e}")
+        logger.error(
+            "/listsites command failed for user_id=%s: %s", user_id, e
+        )
         await message.answer(
             "Error retrieving site list. Check logs for details."
         )
@@ -322,20 +361,66 @@ async def listsites_command(message: Message):
 async def add_site_callback(callback_query: CallbackQuery, state: FSMContext):
     """Handle 'Add site' button callback."""
     logger.info(
-        f"Received add_site callback from user_id={callback_query.from_user.id}"
+        "Received add_site callback from user_id=%s",
+        callback_query.from_user.id,
+    )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Cancel", callback_data="cancel_add_site"
+                )
+            ]
+        ]
     )
     await callback_query.message.answer(
-        "Please enter the URL of the new site (e.g., https://example.com)."
+        "Please enter the URL of the new site (e.g., https://example.com).",
+        reply_markup=keyboard,
     )
     await state.set_state(AddSiteState.url)
     await callback_query.answer()
+
+
+@router.callback_query(lambda c: c.data == "cancel_add_site")
+async def cancel_add_site_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    """Handle 'Cancel' button callback for adding a site."""
+    logger.info(
+        "Received cancel_add_site callback from user_id=%s",
+        callback_query.from_user.id,
+    )
+    await state.clear()
+    await callback_query.message.answer(
+        "Adding a new site has been cancelled."
+    )
+    await callback_query.answer()
+
+
+@router.message(
+    AddSiteState.url,
+    Command(commands=["start", "status", "listsites", "addsite"]),
+)
+async def handle_commands_in_add_state(message: Message, state: FSMContext):
+    """Handle commands during AddSiteState.url to reset state."""
+    logger.info(
+        "Received command %s in AddSiteState.url from chat_id=%s",
+        message.text,
+        message.chat.id,
+    )
+    await state.clear()
+    await message.answer(
+        "Adding a new site has been cancelled due to new command."
+    )
+    # Re-dispatch the command
+    await router.propagate_event("message", message)
 
 
 @router.message(AddSiteState.url, F.text)
 async def process_add_site_url(message: Message, state: FSMContext):
     """Process URL input for adding a new site."""
     user_id = message.chat.id
-    logger.info(f"Processing URL input for add_site from chat_id={user_id}")
+    logger.info("Processing URL input for add_site from chat_id=%s", user_id)
 
     url = message.text.strip()
 
@@ -347,7 +432,9 @@ async def process_add_site_url(message: Message, state: FSMContext):
                 "Invalid URL: Scheme must be http or https. Please try again."
             )
             logger.info(
-                f"Invalid URL input from chat_id={user_id}: {url} (invalid scheme)"
+                "Invalid URL input from chat_id=%s: %s (invalid scheme)",
+                user_id,
+                url,
             )
             return
         if not parsed_url.netloc:
@@ -355,7 +442,9 @@ async def process_add_site_url(message: Message, state: FSMContext):
                 "Invalid URL: Missing domain name. Please try again."
             )
             logger.info(
-                f"Invalid URL input from chat_id={user_id}: {url} (missing netloc)"
+                "Invalid URL input from chat_id=%s: %s (missing netloc)",
+                user_id,
+                url,
             )
             return
 
@@ -380,7 +469,9 @@ async def process_add_site_url(message: Message, state: FSMContext):
                 f"Site {normalized_url} is already being monitored."
             )
             logger.info(
-                f"Duplicate URL input from chat_id={user_id}: {normalized_url}"
+                "Duplicate URL input from chat_id=%s: %s",
+                user_id,
+                normalized_url,
             )
             await state.clear()
             return
@@ -399,12 +490,14 @@ async def process_add_site_url(message: Message, state: FSMContext):
         save(user_id, sites)
 
         await message.answer(f"Site {normalized_url} added to monitoring.")
-        logger.info(f"Added site {normalized_url} for chat_id={user_id}")
+        logger.info("Added site %s for chat_id=%s", normalized_url, user_id)
         await state.clear()
 
     except Exception as e:
         logger.error(
-            f"Error processing URL input for add_site for chat_id={user_id}: {e}"
+            "Error processing URL input for add_site for chat_id=%s: %s",
+            user_id,
+            e,
         )
         await message.answer("Error adding site. Check logs for details.")
         await state.clear()
@@ -423,7 +516,8 @@ async def addsite_command(message: Message):
             "Please provide a URL (e.g., /addsite https://example.com)."
         )
         logger.info(
-            f"Invalid /addsite command from chat_id={user_id}: No URL provided"
+            "Invalid /addsite command from chat_id=%s: No URL provided",
+            user_id,
         )
         return
 
@@ -435,13 +529,17 @@ async def addsite_command(message: Message):
         if not parsed_url.scheme in ["http", "https"]:
             await message.answer("Invalid URL: Scheme must be http or https.")
             logger.info(
-                f"Invalid /addsite URL from chat_id={user_id}: {url} (invalid scheme)"
+                "Invalid /addsite URL from chat_id=%s: %s (invalid scheme)",
+                user_id,
+                url,
             )
             return
         if not parsed_url.netloc:
             await message.answer("Invalid URL: Missing domain name.")
             logger.info(
-                f"Invalid /addsite URL from chat_id={user_id}: {url} (missing netloc)"
+                "Invalid /addsite URL from chat_id=%s: %s (missing netloc)",
+                user_id,
+                url,
             )
             return
 
@@ -466,7 +564,9 @@ async def addsite_command(message: Message):
                 f"Site {normalized_url} is already being monitored."
             )
             logger.info(
-                f"Duplicate /addsite URL from chat_id={user_id}: {normalized_url}"
+                "Duplicate /addsite URL from chat_id=%s: %s",
+                user_id,
+                normalized_url,
             )
             return
 
@@ -484,8 +584,10 @@ async def addsite_command(message: Message):
         save(user_id, sites)
 
         await message.answer(f"Site {normalized_url} added to monitoring.")
-        logger.info(f"Added site {normalized_url} for chat_id={user_id}")
+        logger.info("Added site %s for chat_id=%s", normalized_url, user_id)
 
     except Exception as e:
-        logger.error(f"Error processing /addsite for chat_id={user_id}: {e}")
+        logger.error(
+            "Error processing /addsite for chat_id=%s: %s", user_id, e
+        )
         await message.answer("Error adding site. Check logs for details.")

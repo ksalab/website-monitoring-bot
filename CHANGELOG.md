@@ -5,6 +5,18 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.4.2] - 2025-06-15
+
+### Added
+
+- feat(handlers): Add "Cancel" inline button to exit URL input state after pressing "Add site" in `/listsites`
+- feat(handlers): Add command handling in AddSiteState.url to reset state and re-dispatch commands
+
+### Fixed
+
+- fix(handlers): Correct import typo load_sitsites to load_sites
+- fix(handlers): Translate all comments, messages, and logs to English
+
 ## [1.4.1] - 2025-06-15
 
 ### Added
