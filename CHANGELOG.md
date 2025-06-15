@@ -5,6 +5,12 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.4.3] - 2025-06-15
+
+### Fixed
+
+- fix(handlers): Restore f-strings in logs and messages for improved readability
+
 ## [1.4.2] - 2025-06-15
 
 ### Added
