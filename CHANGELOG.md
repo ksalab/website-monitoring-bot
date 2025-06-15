@@ -5,6 +5,12 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.4.1] - 2025-06-15
+
+### Added
+
+- feat(handlers): Add FSM for interactive URL input after pressing "Add site" button in /listsites
+
 ## [1.4.0] - 2025-06-15
 
 ### Added

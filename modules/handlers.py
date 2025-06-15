@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     Message,
@@ -10,11 +10,11 @@ from aiogram.types import (
     CallbackQuery,
 )
 from aiogram.exceptions import TelegramBadRequest
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from urllib.parse import urlparse, urlunparse
 from aiogram.utils.formatting import (
     Text,
-    Bold,
-    Url,
     as_line,
     as_list,
     as_marked_section,
@@ -30,6 +30,11 @@ from .config import DATE_FORMAT
 
 logger = logging.getLogger(__name__)
 router = Router()
+
+
+# Определение FSM для добавления сайта
+class AddSiteState(StatesGroup):
+    url = State()
 
 
 @router.message(CommandStart())
@@ -314,15 +319,95 @@ async def listsites_command(message: Message):
 
 
 @router.callback_query(lambda c: c.data == "add_site")
-async def add_site_callback(callback_query: CallbackQuery):
+async def add_site_callback(callback_query: CallbackQuery, state: FSMContext):
     """Handle 'Add site' button callback."""
     logger.info(
         f"Received add_site callback from user_id={callback_query.from_user.id}"
     )
     await callback_query.message.answer(
-        "Please send the command /addsite <url> to add a new site (e.g., /addsite https://example.com)."
+        "Please enter the URL of the new site (e.g., https://example.com)."
     )
+    await state.set_state(AddSiteState.url)
     await callback_query.answer()
+
+
+@router.message(AddSiteState.url, F.text)
+async def process_add_site_url(message: Message, state: FSMContext):
+    """Process URL input for adding a new site."""
+    user_id = message.chat.id
+    logger.info(f"Processing URL input for add_site from chat_id={user_id}")
+
+    url = message.text.strip()
+
+    # Validate URL
+    try:
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme in ["http", "https"]:
+            await message.answer(
+                "Invalid URL: Scheme must be http or https. Please try again."
+            )
+            logger.info(
+                f"Invalid URL input from chat_id={user_id}: {url} (invalid scheme)"
+            )
+            return
+        if not parsed_url.netloc:
+            await message.answer(
+                "Invalid URL: Missing domain name. Please try again."
+            )
+            logger.info(
+                f"Invalid URL input from chat_id={user_id}: {url} (missing netloc)"
+            )
+            return
+
+        # Normalize URL
+        normalized_url = urlunparse(
+            (
+                parsed_url.scheme,
+                parsed_url.netloc,
+                parsed_url.path or '/',
+                '',
+                '',
+                '',
+            )
+        )
+
+        # Load existing sites
+        sites = load_sites(user_id)
+
+        # Check for duplicates
+        if any(site["url"] == normalized_url for site in sites):
+            await message.answer(
+                f"Site {normalized_url} is already being monitored."
+            )
+            logger.info(
+                f"Duplicate URL input from chat_id={user_id}: {normalized_url}"
+            )
+            await state.clear()
+            return
+
+        # Add new site
+        new_site = {
+            "url": normalized_url,
+            "ssl_valid": None,
+            "ssl_expires": None,
+            "domain_expires": None,
+            "domain_last_checked": None,
+            "domain_notifications": [],
+            "ssl_notifications": [],
+        }
+        sites.append(new_site)
+        save(user_id, sites)
+
+        await message.answer(f"Site {normalized_url} added to monitoring.")
+        logger.info(f"Added site {normalized_url} for chat_id={user_id}")
+        await state.clear()
+
+    except Exception as e:
+        logger.error(
+            f"Error processing URL input for add_site for chat_id={user_id}: {e}"
+        )
+        await message.answer("Error adding site. Check logs for details.")
+        await state.clear()
 
 
 @router.message(Command("addsite"))
@@ -360,7 +445,7 @@ async def addsite_command(message: Message):
             )
             return
 
-        # Normalize URL (ensure scheme and netloc are present)
+        # Normalize URL
         normalized_url = urlunparse(
             (
                 parsed_url.scheme,

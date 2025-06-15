@@ -13,6 +13,7 @@ A Telegram bot that monitors website availability and SSL certificate status, se
   - `/start`: Initializes the bot and displays a welcome message.
   - `/status`: Reports the current status of all monitored websites, including HTTP, SSL, and domain details.
   - `/listsites`: Lists all websites currently monitored for the user.
+  - `/addsite <url>`: Adds a new website to monitoring (e.g., `/addsite https://example.com`).
 - Logging: Detailed logs with rotation and compression in `logs/bot.log`.
 - Error Handling: Gracefully handles WHOIS errors, showing cached data with last-checked timestamps.
 
@@ -79,7 +80,7 @@ Note: `GoDaddy.com, LLC` is a clickable link to the registrar's website.
 
 5. Configure monitored sites:
 
-- Add websites to `data/<user_id>.json` manually or via bot commands (if implemented).
+- Add websites using `/addsite <url>` or via the "Add site" button in `/listsites`.
 - Example `data/123456789.json`:
 
   ```json
