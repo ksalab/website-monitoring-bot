@@ -5,6 +5,14 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.5.0] - 2025-06-15
+
+### Added
+
+- feat(handlers): Add `/removesite <url>` command to remove websites from monitoring
+- feat(handlers): Add "Remove site" inline button to `/listsites` with interactive mode using FSM
+- feat(handlers): Update `/listsites` message to show site selection buttons for removal
+
 ## [1.4.3] - 2025-06-15
 
 ### Fixed

@@ -14,6 +14,7 @@ A Telegram bot that monitors website availability and SSL certificate status, se
   - `/status`: Reports the current status of all monitored websites, including HTTP, SSL, and domain details.
   - `/listsites`: Lists all websites currently monitored for the user.
   - `/addsite <url>`: Adds a new website to monitoring (e.g., `/addsite https://example.com`).
+  - `/removesite <url>`: Removes a website from monitoring (e.g., `/removesite https://example.com`). Supports interactive mode via `/listsites`.
 - Logging: Detailed logs with rotation and compression in `logs/bot.log`.
 - Error Handling: Gracefully handles WHOIS errors, showing cached data with last-checked timestamps.
 

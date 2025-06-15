@@ -32,9 +32,13 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-# Define FSM for adding a site
+# Define FSM for adding and removing sites
 class AddSiteState(StatesGroup):
     url = State()
+
+
+class RemoveSiteState(StatesGroup):
+    select = State()
 
 
 @router.message(CommandStart())
@@ -43,7 +47,8 @@ async def start_command(message: Message):
     logger.info(f"Received /start command from chat_id={message.chat.id}")
     await message.answer(
         "Website Monitoring Bot started!\n"
-        "Use /status to check current website statuses, /listsites to list monitored sites, or /addsite <url> to add a new site."
+        "Use /status to check current website statuses, /listsites to list monitored sites, "
+        "/addsite <url> to add a new site, or /removesite <url> to remove a site."
     )
 
 
@@ -295,13 +300,16 @@ async def listsites_command(message: Message):
         for site in sites:
             content += Text("- ", site["url"], "\n")
 
-        # Add inline button
+        # Add inline buttons
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [
                     InlineKeyboardButton(
                         text="Add site", callback_data="add_site"
-                    )
+                    ),
+                    InlineKeyboardButton(
+                        text="Remove site", callback_data="remove_site"
+                    ),
                 ]
             ]
         )
@@ -357,7 +365,9 @@ async def cancel_add_site_callback(
 
 @router.message(
     AddSiteState.url,
-    Command(commands=["start", "status", "listsites", "addsite"]),
+    Command(
+        commands=["start", "status", "listsites", "addsite", "removesite"]
+    ),
 )
 async def handle_commands_in_add_state(message: Message, state: FSMContext):
     """Handle commands during AddSiteState.url to reset state."""
@@ -530,3 +540,313 @@ async def addsite_command(message: Message):
     except Exception as e:
         logger.error(f"Error processing /addsite for chat_id={user_id}: {e}")
         await message.answer("Error adding site. Check logs for details.")
+
+
+@router.message(Command("removesite"))
+async def removesite_command(message: Message):
+    """Handle /removesite command to remove a website from monitoring."""
+    user_id = message.chat.id
+    logger.info(f"Received /removesite command from chat_id={user_id}")
+
+    # Extract URL from command
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer(
+            "Please provide a URL (e.g., /removesite https://example.com)."
+        )
+        logger.info(
+            f"Invalid /removesite command from chat_id={user_id}: No URL provided"
+        )
+        return
+
+    url = args[1].strip()
+
+    # Validate and remove URL
+    try:
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme in ["http", "https"]:
+            await message.answer("Invalid URL: Scheme must be http or https.")
+            logger.info(
+                f"Invalid /removesite URL from chat_id={user_id}: {url} (invalid scheme)"
+            )
+            return
+        if not parsed_url.netloc:
+            await message.answer("Invalid URL: Missing domain name.")
+            logger.info(
+                f"Invalid /removesite URL from chat_id={user_id}: {url} (missing netloc)"
+            )
+            return
+
+        # Normalize URL
+        normalized_url = urlunparse(
+            (
+                parsed_url.scheme,
+                parsed_url.netloc,
+                parsed_url.path or '/',
+                '',
+                '',
+                '',
+            )
+        )
+
+        # Load existing sites
+        sites = load_sites(user_id)
+
+        # Check if site exists
+        site_to_remove = next(
+            (site for site in sites if site["url"] == normalized_url), None
+        )
+        if not site_to_remove:
+            await message.answer(
+                f"Site {normalized_url} is not being monitored."
+            )
+            logger.info(
+                f"Site not found for /removesite from chat_id={user_id}: {normalized_url}"
+            )
+            return
+
+        # Remove site
+        sites.remove(site_to_remove)
+        save(user_id, sites)
+
+        await message.answer(f"Site {normalized_url} removed from monitoring.")
+        logger.info(f"Removed site {normalized_url} for chat_id={user_id}")
+
+    except Exception as e:
+        logger.error(
+            f"Error processing /removesite for chat_id={user_id}: {e}"
+        )
+        await message.answer("Error removing site. Check logs for details.")
+
+
+@router.callback_query(lambda c: c.data == "remove_site")
+async def remove_site_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    """Handle 'Remove site' button callback."""
+    user_id = callback_query.from_user.id
+    logger.info(f"Received remove_site callback from user_id={user_id}")
+
+    try:
+        sites = load_sites(user_id)
+        if not sites:
+            await callback_query.message.edit_text(
+                "No sites are currently monitored. Use /addsite <url> to add a new site."
+            )
+            logger.info(
+                f"Sent empty remove_site response to user_id={user_id}"
+            )
+            await state.clear()
+            await callback_query.answer()
+            return
+
+        # Build inline keyboard with site URLs and Cancel
+        keyboard_buttons = [
+            [
+                InlineKeyboardButton(
+                    text=site["url"], callback_data=f"remove:{site['url']}"
+                )
+            ]
+            for site in sites
+        ]
+        keyboard_buttons.append(
+            [
+                InlineKeyboardButton(
+                    text="Cancel", callback_data="cancel_remove_site"
+                )
+            ]
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+
+        # Update message with site selection
+        await callback_query.message.edit_text(
+            "Select a site to remove:", reply_markup=keyboard
+        )
+        await state.set_state(RemoveSiteState.select)
+        await callback_query.answer()
+
+    except TelegramBadRequest as e:
+        logger.error(
+            f"Failed to edit message for remove_site for user_id={user_id}: {e}"
+        )
+        await callback_query.message.answer(
+            "Error updating site list. Check logs for details."
+        )
+        await state.clear()
+        await callback_query.answer()
+    except Exception as e:
+        logger.error(
+            f"Error processing remove_site callback for user_id={user_id}: {e}"
+        )
+        await callback_query.message.answer(
+            "Error removing site. Check logs for details."
+        )
+        await state.clear()
+        await callback_query.answer()
+
+
+@router.callback_query(lambda c: c.data.startswith("remove:"))
+async def remove_selected_site_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    """Handle site removal from selection."""
+    user_id = callback_query.from_user.id
+    url = callback_query.data[len("remove:") :]
+    logger.info(
+        f"Received remove_selected_site callback for url={url} from user_id={user_id}"
+    )
+
+    try:
+        # Load existing sites
+        sites = load_sites(user_id)
+
+        # Check if site exists
+        site_to_remove = next(
+            (site for site in sites if site["url"] == url), None
+        )
+        if not site_to_remove:
+            await callback_query.message.edit_text(
+                f"Site {url} is not being monitored."
+            )
+            logger.info(
+                f"Site not found for remove_selected_site from user_id={user_id}: {url}"
+            )
+            await state.clear()
+            await callback_query.answer()
+            return
+
+        # Remove site
+        sites.remove(site_to_remove)
+        save(user_id, sites)
+
+        # Refresh the /listsites view
+        if sites:
+            content = Text("Monitored websites:\n\n")
+            for site in sites:
+                content += Text("- ", site["url"], "\n")
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Add site", callback_data="add_site"
+                        ),
+                        InlineKeyboardButton(
+                            text="Remove site", callback_data="remove_site"
+                        ),
+                    ]
+                ]
+            )
+            await callback_query.message.edit_text(
+                **content.as_kwargs(), reply_markup=keyboard
+            )
+        else:
+            await callback_query.message.edit_text(
+                "No sites are currently monitored. Use /addsite <url> to add a new site."
+            )
+
+        await callback_query.message.answer(
+            f"Site {url} removed from monitoring."
+        )
+        logger.info(f"Removed site {url} for user_id={user_id}")
+        await state.clear()
+        await callback_query.answer()
+
+    except TelegramBadRequest as e:
+        logger.error(
+            f"Failed to edit message for remove_selected_site for user_id={user_id}: {e}"
+        )
+        await callback_query.message.answer(
+            "Error updating site list. Check logs for details."
+        )
+        await state.clear()
+        await callback_query.answer()
+    except Exception as e:
+        logger.error(
+            f"Error processing remove_selected_site for user_id={user_id}: {e}"
+        )
+        await callback_query.message.answer(
+            "Error removing site. Check logs for details."
+        )
+        await state.clear()
+        await callback_query.answer()
+
+
+@router.callback_query(lambda c: c.data == "cancel_remove_site")
+async def cancel_remove_site_callback(
+    callback_query: CallbackQuery, state: FSMContext
+):
+    """Handle 'Cancel' button callback for removing a site."""
+    user_id = callback_query.from_user.id
+    logger.info(f"Received cancel_remove_site callback from user_id={user_id}")
+
+    try:
+        # Refresh the /listsites view
+        sites = load_sites(user_id)
+        if sites:
+            content = Text("Monitored websites:\n\n")
+            for site in sites:
+                content += Text("- ", site["url"], "\n")
+            keyboard = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Add site", callback_data="add_site"
+                        ),
+                        InlineKeyboardButton(
+                            text="Remove site", callback_data="remove_site"
+                        ),
+                    ]
+                ]
+            )
+            await callback_query.message.edit_text(
+                **content.as_kwargs(), reply_markup=keyboard
+            )
+        else:
+            await callback_query.message.edit_text(
+                "No sites are currently monitored. Use /addsite <url> to add a new site."
+            )
+
+        await callback_query.message.answer(
+            "Removing a site has been cancelled."
+        )
+        logger.info(f"Cancelled site removal for user_id={user_id}")
+        await state.clear()
+        await callback_query.answer()
+
+    except TelegramBadRequest as e:
+        logger.error(
+            f"Failed to edit message for cancel_remove_site for user_id={user_id}: {e}"
+        )
+        await callback_query.message.answer(
+            "Error updating site list. Check logs for details."
+        )
+        await state.clear()
+        await callback_query.answer()
+    except Exception as e:
+        logger.error(
+            f"Error processing cancel_remove_site for user_id={user_id}: {e}"
+        )
+        await callback_query.message.answer(
+            "Error cancelling site removal. Check logs for details."
+        )
+        await state.clear()
+        await callback_query.answer()
+
+
+@router.message(
+    RemoveSiteState.select,
+    Command(
+        commands=["start", "status", "listsites", "addsite", "removesite"]
+    ),
+)
+async def handle_commands_in_remove_state(message: Message, state: FSMContext):
+    """Handle commands during RemoveSiteState.select to reset state."""
+    logger.info(
+        f"Received command {message.text} in RemoveSiteState.select from chat_id={message.chat.id}"
+    )
+    await state.clear()
+    await message.answer(
+        "Removing a site has been cancelled due to new command."
+    )
+    # Re-dispatch the command
+    await router.propagate_event("message", message)
