@@ -1,13 +1,16 @@
+import aiohttp
+import asyncio
+import certifi
+import dns.resolver
+import dns.exception
+import logging
 import ssl
 import socket
-import aiohttp
-import logging
-from datetime import datetime
-from typing import TypedDict, Optional
-from tenacity import retry, stop_after_attempt, wait_exponential
-from urllib.parse import urlparse
 import whois
-import certifi
+from datetime import datetime
+from tenacity import retry, stop_after_attempt, wait_exponential
+from typing import TypedDict, Optional, List
+from urllib.parse import urlparse
 from .config import DATE_FORMAT, CERT_DATE_FORMAT
 
 logger = logging.getLogger(__name__)
@@ -33,6 +36,15 @@ class DomainStatus(TypedDict):
     registrar_url: Optional[str]
     error: Optional[str]
     success: bool
+
+
+class DNSStatus(TypedDict):
+    url: str
+    a_records: List[str]
+    mx_records: List[str]
+    other_records: dict
+    success: bool
+    error: Optional[str]
 
 
 @retry(
@@ -189,3 +201,108 @@ def check_domain_expiration(domain: str) -> DomainStatus:
         result["error"] = str(e)
         logger.warning(f"Domain check failed for {domain}: {e}")
     return result
+
+
+async def check_dns_records(
+    domain: str, record_types: List[str] = ["A", "MX"]
+) -> DNSStatus:
+    """Check DNS records for a domain, querying authoritative servers.
+
+    Args:
+        domain: Domain name to check.
+        record_types: List of DNS record types to query (default: ["A", "MX"]).
+
+    Returns:
+        DNSStatus: DNS records and error information.
+    """
+    logger.debug(f"Checking DNS records for {domain}: types={record_types}")
+    result: DNSStatus = {
+        "url": domain,
+        "a_records": [],
+        "mx_records": [],
+        "other_records": {},
+        "success": False,
+        "error": None,
+    }
+
+    try:
+        resolver = dns.resolver.Resolver()
+        resolver.timeout = 5
+        resolver.lifetime = 10  # Increased for authoritative queries
+
+        # Get authoritative name servers
+        try:
+            ns_answers = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: resolver.resolve(domain, "NS")
+            )
+            name_servers = [str(rdata) for rdata in ns_answers]
+            logger.debug(
+                f"Authoritative name servers for {domain}: {name_servers}"
+            )
+            resolver.nameservers = [
+                socket.gethostbyname(ns.rstrip(".")) for ns in name_servers
+            ]
+        except Exception as e:
+            logger.warning(
+                f"Failed to get NS records for {domain}: {e}, using default resolver"
+            )
+            resolver.nameservers = [
+                "8.8.8.8",
+                "8.8.4.4",
+            ]  # Fallback to Google DNS
+
+        for record_type in record_types:
+            try:
+                rdatatype = getattr(dns.rdatatype, record_type)
+                answers = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: resolver.resolve(domain, rdatatype)
+                )
+                logger.debug(
+                    f"Received {record_type} answers for {domain}: {answers.rrset}"
+                )
+                if record_type == "A":
+                    result["a_records"] = sorted(
+                        [str(rdata) for rdata in answers]
+                    )
+                elif record_type == "MX":
+                    result["mx_records"] = sorted(
+                        [
+                            f"{rdata.preference} {rdata.exchange}"
+                            for rdata in answers
+                        ]
+                    )
+                else:
+                    result["other_records"][record_type.lower()] = sorted(
+                        [str(rdata) for rdata in answers]
+                    )
+                logger.debug(
+                    f"DNS {record_type} for {domain}: {result.get(record_type.lower() + '_records', result['other_records'].get(record_type.lower()))}"
+                )
+            except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN) as e:
+                logger.warning(f"No {record_type} records for {domain}: {e}")
+                if record_type == "A":
+                    result["a_records"] = []
+                elif record_type == "MX":
+                    result["mx_records"] = []
+                else:
+                    result["other_records"][record_type.lower()] = []
+            except dns.exception.DNSException as e:
+                logger.warning(
+                    f"DNS {record_type} query failed for {domain}: {e}"
+                )
+                if record_type == "A":
+                    result["a_records"] = []
+                elif record_type == "MX":
+                    result["mx_records"] = []
+                else:
+                    result["other_records"][record_type.lower()] = []
+
+        result["success"] = True
+        logger.info(
+            f"DNS check successful for {domain}: A={result['a_records']}, MX={result['mx_records']}, Other={result['other_records']}"
+        )
+        return result
+    except Exception as e:
+        result["error"] = str(e)
+        logger.error(f"DNS check failed for {domain}: {e}")
+        return result

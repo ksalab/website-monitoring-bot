@@ -25,6 +25,7 @@ from .checks import (
     check_website_status,
     check_ssl_certificate,
     check_domain_expiration,
+    check_dns_records,
 )
 from .config import DATE_FORMAT
 
@@ -73,57 +74,104 @@ async def status_command(message: Message):
             url = site["url"]
             tasks.append(check_website_status(url))
             tasks.append(check_ssl_certificate(url))
+            parsed_url = urlparse(url)
+            domain = parsed_url.hostname
+            if domain:
+                tasks.append(check_dns_records(domain))
+            else:
+                tasks.append(
+                    asyncio.sleep(
+                        0,
+                        result={
+                            "url": url,
+                            "success": False,
+                            "error": "Invalid domain",
+                            "a_records": [],
+                            "mx_records": [],
+                            "other_records": {},
+                        },
+                    )
+                )
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         for i, site in enumerate(sites):
             url = site["url"]
             try:
-                status_result = results[i * 2]
-                ssl_result = results[i * 2 + 1]
+                status_result = results[i * 3]
+                ssl_result = results[i * 3 + 1]
+                dns_result = results[i * 3 + 2]
 
-                if isinstance(status_result, Exception) or isinstance(
-                    ssl_result, Exception
-                ):
-                    content = as_list(
-                        as_line(Text("🌐 ", url)),
-                        as_line(Text("Status: 🔴 Error during check")),
+                parsed_url = urlparse(url)
+                domain = parsed_url.hostname
+
+                # Initialize content
+                content_parts = [as_line(Text("🌐 ", url))]
+
+                # Handle HTTP status
+                if isinstance(status_result, Exception):
+                    content_parts.append(
+                        as_line(Text("Status: 🔴 Error during check"))
+                    )
+                    logger.error(
+                        f"HTTP check failed for {url}: {status_result}"
+                    )
+                else:
+                    status_emoji = (
+                        "🟢" if "200" in status_result["status"] else "🔴"
+                    )
+                    content_parts.append(
+                        as_line(
+                            Text(
+                                "Status: ",
+                                status_emoji,
+                                " ",
+                                status_result["status"],
+                            )
+                        )
+                    )
+                    logger.debug(
+                        f"HTTP status for {url}: {status_result['status']}"
+                    )
+
+                # Handle SSL
+                if isinstance(ssl_result, Exception):
+                    content_parts.append(
                         as_marked_section(
                             "--- SSL ---",
                             as_key_value("Error", "Check failed"),
-                        ),
+                        )
+                    )
+                    logger.error(f"SSL check failed for {url}: {ssl_result}")
+                else:
+                    site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
+                    site["ssl_expires"] = ssl_result["expires"]
+                    ssl_days_left = "N/A"
+                    if site["ssl_expires"]:
+                        try:
+                            ssl_expiry = datetime.strptime(
+                                site["ssl_expires"], DATE_FORMAT
+                            )
+                            ssl_days_left = (ssl_expiry - datetime.now()).days
+                        except ValueError:
+                            logger.error(
+                                f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
+                            )
+                    content_parts.append(
                         as_marked_section(
-                            "--- Domain ---",
-                            as_key_value("Error", "Check failed"),
-                        ),
+                            "--- SSL ---",
+                            as_key_value("Valid", str(site["ssl_valid"])),
+                            as_key_value(
+                                "Expires", site["ssl_expires"] or "N/A"
+                            ),
+                            as_key_value("Days Left", str(ssl_days_left)),
+                        )
                     )
                     logger.debug(
-                        f"Sending /status message for {url}: {content.render()}"
+                        f"SSL status for {url}: Valid={site['ssl_valid']}, Expires={site['ssl_expires']}"
                     )
-                    await message.answer(**content.as_kwargs())
-                    logger.error(
-                        f"Error checking {url} for /status command: {status_result or ssl_result}"
-                    )
-                    continue
 
-                # Update SSL data
-                site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
-                site["ssl_expires"] = ssl_result["expires"]
-
-                # Determine status emoji
-                status_emoji = (
-                    "🟢" if "200" in status_result["status"] else "🔴"
-                )
-
-                # Log fields before building response
-                logger.debug(
-                    f"Building /status for {url}: url={url}, status={status_result['status']}, "
-                    f"ssl_valid={site['ssl_valid']}, ssl_expires={site['ssl_expires']}"
-                )
-
-                # Always perform WHOIS check for /status
-                parsed_url = urlparse(url)
-                domain = parsed_url.hostname
+                # Handle Domain
                 domain_status = "Unknown"
                 domain_days_left = "N/A"
                 registrar_info = Text("Unknown")
@@ -204,45 +252,64 @@ async def status_command(message: Message):
                                 logger.error(
                                     f"Invalid domain_expires format for {url}: {site['domain_expires']}"
                                 )
-
-                # Calculate SSL days left
-                ssl_days_left = "N/A"
-                if site["ssl_expires"]:
-                    try:
-                        ssl_expiry = datetime.strptime(
-                            site["ssl_expires"], DATE_FORMAT
-                        )
-                        ssl_days_left = (ssl_expiry - datetime.now()).days
-                    except ValueError:
-                        logger.error(
-                            f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
-                        )
-
-                # Build response with aiogram formatting
-                content = as_list(
-                    as_line(Text("🌐 ", url)),
-                    as_line(
-                        Text(
-                            "Status: ",
-                            status_emoji,
-                            " ",
-                            status_result["status"],
-                        )
-                    ),
-                    as_marked_section(
-                        "--- SSL ---",
-                        as_key_value("Valid", str(site["ssl_valid"])),
-                        as_key_value("Expires", site["ssl_expires"] or "N/A"),
-                        as_key_value("Days Left", str(ssl_days_left)),
-                    ),
+                content_parts.append(
                     as_marked_section(
                         "--- Domain ---",
                         as_key_value("Expires", domain_status),
                         as_key_value("Days Left", str(domain_days_left)),
                         as_key_value("Registrar", registrar_info),
-                    ),
+                    )
                 )
 
+                # Handle DNS
+                if isinstance(dns_result, Exception) or not domain:
+                    dns_status = (
+                        "Error: Invalid domain"
+                        if not domain
+                        else f"Error: {str(dns_result)}"
+                    )
+                    dns_a = site.get("dns_a", []) or ["N/A"]
+                    dns_mx = site.get("dns_mx", []) or ["N/A"]
+                    dns_last_checked = site.get("dns_last_checked", "N/A")
+                    content_parts.append(
+                        as_marked_section(
+                            "--- DNS ---",
+                            as_key_value("DNS Status", dns_status),
+                            as_key_value("A Records", ", ".join(dns_a)),
+                            as_key_value("MX Records", ", ".join(dns_mx)),
+                            as_key_value("Last Checked", dns_last_checked),
+                        )
+                    )
+                    logger.error(f"DNS check failed for {url}: {dns_result}")
+                else:
+                    if dns_result["success"]:
+                        site["dns_a"] = dns_result.get("a_records", [])
+                        site["dns_mx"] = dns_result.get("mx_records", [])
+                        site["dns_last_checked"] = datetime.now().strftime(
+                            DATE_FORMAT
+                        )
+                        site["dns_records"] = dns_result.get(
+                            "other_records", {}
+                        )
+                        dns_status = "OK"
+                    else:
+                        dns_status = f"Error: {dns_result['error']}"
+                    dns_a = site["dns_a"] or ["N/A"]
+                    dns_mx = site["dns_mx"] or ["N/A"]
+                    content_parts.append(
+                        as_marked_section(
+                            "--- DNS ---",
+                            as_key_value("DNS Status", dns_status),
+                            as_key_value("A Records", ", ".join(dns_a)),
+                            as_key_value("MX Records", ", ".join(dns_mx)),
+                        )
+                    )
+                    logger.info(
+                        f"DNS processed for {url}: A={dns_a}, MX={dns_mx}, Status={dns_status}"
+                    )
+
+                # Build and send response
+                content = as_list(*content_parts)
                 try:
                     text, entities = content.render()
                     logger.debug(
@@ -260,12 +327,6 @@ async def status_command(message: Message):
                         f"Error sending status for {url}. Check logs for details."
                     )
 
-                logger.info(
-                    f"Status processed for {url}: Status={status_result['status']}, "
-                    f"SSL_Expires={site['ssl_expires']}, Domain_Expires={domain_status}, "
-                    f"Registrar={registrar_info}"
-                )
-
             except Exception as e:
                 logger.error(
                     f"Error processing status for {url} for user_id={user_id}: {e}"
@@ -275,6 +336,7 @@ async def status_command(message: Message):
                 )
 
         save(user_id, sites)
+        logger.debug(f"Saved updated sites for user_id={user_id}")
     except Exception as e:
         logger.error(f"/status command failed for user_id={user_id}: {e}")
         await message.answer(
@@ -328,9 +390,8 @@ async def listsites_command(message: Message):
 @router.callback_query(lambda c: c.data == "add_site")
 async def add_site_callback(callback_query: CallbackQuery, state: FSMContext):
     """Handle 'Add site' button callback."""
-    logger.info(
-        f"Received add_site callback from user_id={callback_query.from_user.id}"
-    )
+    user_id = callback_query.from_user.id
+    logger.info(f"Received add_site callback from user_id={user_id}")
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -353,9 +414,8 @@ async def cancel_add_site_callback(
     callback_query: CallbackQuery, state: FSMContext
 ):
     """Handle 'Cancel' button callback for adding a site."""
-    logger.info(
-        f"Received cancel_add_site callback from user_id={callback_query.from_user.id}"
-    )
+    user_id = callback_query.from_user.id
+    logger.info(f"Received cancel_add_site callback from user_id={user_id}")
     await state.clear()
     await callback_query.message.answer(
         "Adding a new site has been cancelled."
@@ -437,7 +497,7 @@ async def process_add_site_url(message: Message, state: FSMContext):
             return
 
         # Add new site
-        new_site = {
+        new_site: SiteConfig = {
             "url": normalized_url,
             "ssl_valid": None,
             "ssl_expires": None,
@@ -445,6 +505,10 @@ async def process_add_site_url(message: Message, state: FSMContext):
             "domain_last_checked": None,
             "domain_notifications": [],
             "ssl_notifications": [],
+            "dns_a": None,
+            "dns_mx": None,
+            "dns_last_checked": None,
+            "dns_records": {},
         }
         sites.append(new_site)
         save(user_id, sites)
@@ -522,7 +586,7 @@ async def addsite_command(message: Message):
             return
 
         # Add new site
-        new_site = {
+        new_site: SiteConfig = {
             "url": normalized_url,
             "ssl_valid": None,
             "ssl_expires": None,
@@ -530,6 +594,10 @@ async def addsite_command(message: Message):
             "domain_last_checked": None,
             "domain_notifications": [],
             "ssl_notifications": [],
+            "dns_a": None,
+            "dns_mx": None,
+            "dns_last_checked": None,
+            "dns_records": {},
         }
         sites.append(new_site)
         save(user_id, sites)
