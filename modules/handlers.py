@@ -640,15 +640,26 @@ async def remove_site_callback(
             await callback_query.answer()
             return
 
-        # Build inline keyboard with site URLs and Cancel
-        keyboard_buttons = [
-            [
-                InlineKeyboardButton(
-                    text=site["url"], callback_data=f"remove:{site['url']}"
-                )
-            ]
-            for site in sites
-        ]
+        # Build inline keyboard with domain names and Cancel
+        domain_counts = {}
+        keyboard_buttons = []
+        for site in sites:
+            parsed_url = urlparse(site["url"])
+            domain = parsed_url.hostname or "unknown"
+            # Handle duplicate domains
+            if domain in domain_counts:
+                domain_counts[domain] += 1
+                button_text = f"{domain} ({domain_counts[domain]})"
+            else:
+                domain_counts[domain] = 0
+                button_text = domain
+            keyboard_buttons.append(
+                [
+                    InlineKeyboardButton(
+                        text=button_text, callback_data=f"remove:{site['url']}"
+                    )
+                ]
+            )
         keyboard_buttons.append(
             [
                 InlineKeyboardButton(

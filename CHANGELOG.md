@@ -5,6 +5,12 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.5.1] - 2025-06-16
+
+### Changed
+
+- feat(handlers): Display only domain names in site removal buttons for `/listsites` (e.g., `example.com` instead of `https://example.com/`)
+
 ## [1.5.0] - 2025-06-15
 
 ### Added
