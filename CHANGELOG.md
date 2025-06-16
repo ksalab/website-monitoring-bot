@@ -5,6 +5,14 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.6.0] - 2025-06-16
+
+### Added
+
+- feat(checks): Add DNS monitoring for A and MX records in /status with caching in data/<user_id>.json
+- feat(handlers): Include DNS block in /status output with A Records, MX Records, and DNS Status
+- feat(storage): Extend SiteConfig with dns_a, dns_mx, dns_last_checked, and dns_records for future DNS types
+
 ## [1.5.1] - 2025-06-16
 
 ### Changed

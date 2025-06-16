@@ -9,6 +9,7 @@ black==25.1.0
 certifi==2024.8.30
 click==8.2.1
 dotenv==0.9.9
+dnspython==2.7.0
 frozenlist==1.7.0
 idna==3.10
 magic-filter==1.0.12

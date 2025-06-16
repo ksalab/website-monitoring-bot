@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import List, TypedDict
+from typing import List, TypedDict, Optional
 from .config import DATA_DIR
 
 logger = logging.getLogger(__name__)
@@ -9,12 +9,16 @@ logger = logging.getLogger(__name__)
 
 class SiteConfig(TypedDict):
     url: str
-    ssl_valid: bool | None
-    ssl_expires: str | None
-    domain_expires: str | None
-    domain_last_checked: str | None
+    ssl_valid: Optional[bool]
+    ssl_expires: Optional[str]
+    domain_expires: Optional[str]
+    domain_last_checked: Optional[str]
     domain_notifications: List[int]
     ssl_notifications: List[int]
+    dns_a: Optional[List[str]]
+    dns_mx: Optional[List[str]]
+    dns_last_checked: Optional[str]
+    dns_records: Optional[dict]
 
 
 def get_user_sites_path(user_id: int) -> str:
@@ -26,6 +30,7 @@ def get_user_sites_path(user_id: int) -> str:
     Returns:
         str: Path to data/<user_id>.json.
     """
+    logger.debug(f"Getting sites path for user_id={user_id}")
     return os.path.join(DATA_DIR, f"{user_id}.json")
 
 
@@ -62,6 +67,10 @@ def load_sites(user_id: int) -> List[SiteConfig]:
                     raise ValueError(f"Invalid site entry: {site}")
                 site.setdefault("domain_notifications", [])
                 site.setdefault("ssl_notifications", [])
+                site.setdefault("dns_a", None)
+                site.setdefault("dns_mx", None)
+                site.setdefault("dns_last_checked", None)
+                site.setdefault("dns_records", {})
             logger.info(
                 f"Successfully loaded {len(sites)} sites for user_id={user_id} from {sites_path}"
             )

@@ -4,36 +4,41 @@ A Telegram bot that monitors website availability and SSL certificate status, se
 
 ## Features
 
-- HTTP Status Monitoring: Checks website availability (e.g., `200 OK`, `down`).
-- SSL Certificate Monitoring: Tracks SSL validity, expiration dates, and remaining days.
-- Domain Expiration Monitoring: Retrieves domain expiration dates via WHOIS and calculates remaining days.
-- Per-User Configuration: Stores monitored sites in `data/<user_id>.json` for each Telegram user.
-- Formatted Status Reports: Sends detailed `/status` messages with emojis (🟢/🔴) and clickable registrar links.
-- Commands:
+- **HTTP Status Monitoring**: Checks website availability (e.g., `200 OK`, `down`).
+- **SSL Certificate Monitoring**: Tracks SSL validity, expiration dates, and remaining days.
+- **Domain Expiration Monitoring**: Retrieves domain expiration dates via WHOIS and calculates remaining days.
+- **DNS Monitoring**: Checks A (IPv4) and MX (mail server) records with caching and error handling using `dnspython`.
+- **Per-User Configuration**: Stores monitored sites in `data/<user_id>.json` for each Telegram user.
+- **Formatted Status Reports**: Sends detailed `/status` messages with emojis (🟢/🔴) and clickable registrar links.
+- **Commands**:
   - `/start`: Initializes the bot and displays a welcome message.
   - `/status`: Reports the current status of all monitored websites, including HTTP, SSL, and domain details.
   - `/listsites`: Lists all websites currently monitored for the user.
   - `/addsite <url>`: Adds a new website to monitoring (e.g., `/addsite https://example.com`).
-  - `/removesite <url>`: Removes a website from monitoring (e.g., `/removesite https://example.com`). Supports interactive mode via `/listsites`.
-- Logging: Detailed logs with rotation and compression in `logs/bot.log`.
-- Error Handling: Gracefully handles WHOIS errors, showing cached data with last-checked timestamps.
+  - `/removesite <url>`: Removes a website from monitoring (e.g., `/removesite https://example.com`). Supports interactive mode via `/listsites`, showing domain names (e.g., `example.com`) in selection buttons.
+- **Logging**: Detailed logs with rotation and compression in `logs/bot.log`.
+- **Error Handling**: Gracefully handles WHOIS errors, showing cached data with last-checked timestamps.
 
 Example `/status` Output
 
 ```sh
-🌐 https://ksalab.xyz
+🌐 https://google.com
 Status: 🟢 200 OK
 --- SSL ---
 Valid: True
-Expires: 2025-07-16 10:29:32
-Days Left: 32
+Expires: 2025-07-20 12:00:00
+Days Left: 34
 --- Domain ---
-Expires: 2027-08-16 23:59:59
-Days Left: 794
-Registrar: GoDaddy.com, LLC
+Expires: 2027-09-14 23:59:59
+Days Left: 820
+Registrar: MarkMonitor Inc.
+--- DNS ---
+DNS Status: OK
+A Records: 142.250.190.78, 142.250.190.79, 142.250.190.80
+MX Records: 10 smtp.google.com
 ```
 
-Note: `GoDaddy.com, LLC` is a clickable link to the registrar's website.
+*Note: `MarkMonitor Inc.` is a clickable link to the registrar's website.*
 
 ## Installation
 
@@ -93,7 +98,11 @@ Note: `GoDaddy.com, LLC` is a clickable link to the registrar's website.
       "domain_expires": null,
       "domain_last_checked": null,
       "domain_notifications": [],
-      "ssl_notifications": []
+      "ssl_notifications": [],
+      "dns_a": ["93.184.216.34"],
+      "dns_mx": [],
+      "dns_last_checked": "2025-06-16 14:23:45",
+      "dns_records": {}
     }
   ]
   ```
@@ -122,7 +131,7 @@ website-monitoring-bot/
 ├── CHANGELOG.md       # Project changelog
 ├── README.md          # This file
 ├── requirements.txt   # Python dependencies
-└── VERSION            # Current version (1.3.2)
+└── VERSION            # Current version (1.6.0)
 ```
 
 ## Dependencies
@@ -138,10 +147,6 @@ website-monitoring-bot/
 
 See in [CHANGELOG.md](./CHANGELOG.md)
 
-## License
-
-This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
-
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request for any improvements or bug fixes.
@@ -151,6 +156,10 @@ Contributions are welcome! Please open an issue or submit a pull request for any
 - Commit changes (git commit -m "Add your feature").
 - Push to the branch (git push origin feature/your-feature).
 - Open a Pull Request.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
 
 ## Contact
 
