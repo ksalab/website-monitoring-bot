@@ -1,16 +1,96 @@
-UX/UI:
-  - button for adding site to checking
+Website Monitoring Bot - TODO List
+==================================================
+This file contains the current status of the bot's features and planned tasks.
+==================================================
+Features and tasks:
 
-Backend:
-  ✔ change format sites.json for keeping ssl_valid, ssl_expires, domain_expires @done(25-06-12 18:09)
-  ✔ log rotation and compress @done(25-06-12 22:22)
-  ✔ refactoring @done(25-06-13 14:06)
+  Main commands and functionality::
+    Added the /start command:
+      ✔ Welcome message. @done(25-06-16 16:53)
+    Added the /status command:
+      ✔ HTTP status and SSL verification. @done(25-06-16 16:52)
+      ✔ SSL/Domain blocks, emojis, and registrar links have been added. @done(25-06-16 16:52)
+      ✔ DNS monitoring (A, MX) with caching and error handling has been added. @done(25-06-16 16:52)
+    Added the /listsites command:
+      ✔ Added the /listsites command. @done(25-06-16 16:53)
+      ✔ Added inline buttons “Add site” and “Remove site”. @done(25-06-16 16:53)
+      ✔ Display domains instead of full URLs in the delete buttons. @done(25-06-16 16:53)
+    Implement /addsite <url> to add a site:
+      ✔ Added command and interactive input via FSM. @done(25-06-16 16:54)
+    Implement /removesite <url> to remove a site:
+      ✔ Added command and interactive removal via FSM. @done(25-06-16 16:54)
 
-Functions:
-  ✔ check ssl certificate @done(25-06-11 14:50)
-  ✔ check domain expire date @done(25-06-12 18:09)
-  ✔ notification events @done(25-06-12 18:10)
-  ✔ list existing sites for checking @done(25-06-12 18:28)
-  ✔ show domain registrant @done(25-06-13 17:13)
-  - a separate message for each site
+  Notifications:
+    Domain expiration notifications:
+      ✔ Basic notifications. @done(25-06-16 17:01)
+      ✔ Multiple thresholds (30, 15, 7, 1 day). @done(25-06-16 17:01)
+    SSL expiration notifications:
+      ✔ Threshold notifications. @done(25-06-16 17:01)
+    DNS record change notifications:
+      - Planned: Not implemented, requires comparison of current and cached records.
+    Website unavailability notifications (HTTP errors):
+      - Planned: Not implemented, can be added to notifications.py.
+    Support for group and individual notifications:
+      ✔ NOTIFICATION_MODE (group/user). @done(25-06-16 17:01)
 
+  Data storage:
+    Storage of sites in data/sites.json:
+      ✔ Initial implementation. @done(25-06-16 16:59)
+    Transition to per-user storage in data/<user_id>.json:
+      ✔ Support for individual configurations. @done(25-06-16 16:59)
+    SiteConfig extension for DNS data:
+      ✔ Added dns_a, dns_mx, dns_last_checked, dns_records. @done(25-06-16 16:59)
+
+  Monitoring and inspections:
+    HTTP status monitoring:
+      ✔ Checking via aiohttp with retries. @done(25-06-16 16:56)
+    SSL certificate monitoring:
+      ✔ Checking via ssl.SSLSocket and certifi. @done(25-06-16 16:56)
+      ✔ Threshold notifications added (30, 15, 7, 1 day). @done(25-06-16 16:56)
+    Domain expiration monitoring via WHOIS:
+      ✔ Check via python-whois. @done(25-06-16 16:56)
+      ✔ WHOIS error handling with caching. @done(25-06-16 16:56)
+      ✔ Added registrar data and links. @done(25-06-16 16:57)
+    Monitoring DNS records (A, MX):
+      ✔ Checking via dnspython with caching, error handling, and queries to authoritative servers. @done(25-06-16 16:57)
+    Add support for other DNS records (TXT, CNAME):
+      - Planned: The structure of check_dns_records and SiteConfig is ready for expansion, but output to /status and notifications are not implemented.
+    Add IPv6 check (AAAA records):
+      - Planned: Not discussed in detail, but possible as an extension of DNS monitoring.
+    Add ICMP (ping) site availability check:
+      - Planned: Not implemented, may be added via pythonping or similar.
+
+  Formatting and UX:
+    Improved formatting /status:
+      ✔ SSL/Domain blocks, emojis. @done(25-06-16 17:04)
+      ✔ Use of aiogram.utils.formatting. @done(25-06-16 17:04)
+      ✔ DNS block. @done(25-06-16 17:04)
+    Error handling in /status:
+      ✔ Independent handling of sites. @done(25-06-16 17:04)
+      ✔ DNS error handling with cache. @done(25-06-16 17:05)
+    Inline buttons for /listsites:
+      ✔ “Add site”, “Remove site”. @done(25-06-16 17:05)
+      ✔ Domains in delete buttons. @done(25-06-16 17:05)
+    Pagination for long lists in /listsites:
+      - Planned: Not implemented, relevant for a large number of sites.
+    Customization of the /status format (e.g., selection of displayed blocks):
+      - Planned: Not discussed, but possible through user settings.
+
+  Logging and debugging:
+    Centralized logging:
+      ✔ Logs in logs/bot.log with rotation. @done(25-06-16 17:07)
+    Restoration of f-strings in logs:
+      ✔ Improved readability. @done(25-06-16 17:07)
+    Detailed logging of DNS queries:
+      ✔ Logs of NS servers, A/MX records. @done(25-06-16 17:07)
+    Exporting logs to external systems (e.g., Sentry):
+      - Planned: Not implemented, may be useful for production.
+
+  Infrastructure and dependencies:
+    Modular code structure:
+      ✔ Separation into checks, storage, handlers, etc. @done(25-06-16 17:08)
+    ✔ Addition of dnspython for DNS @done(25-06-16 17:08)
+    Containerization (Docker):
+      - Planned: Not implemented, will simplify deployment.
+    CI/CD for automated testing and deployment:
+      - Planned: Not implemented, can be configured via GitHub Actions.

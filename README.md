@@ -9,6 +9,7 @@ A Telegram bot that monitors website availability and SSL certificate status, se
 - **Domain Expiration Monitoring**: Retrieves domain expiration dates via WHOIS and calculates remaining days.
 - **DNS Monitoring**: Checks A (IPv4) and MX (mail server) records with caching and error handling using `dnspython`.
 - **Per-User Configuration**: Stores monitored sites in `data/<user_id>.json` for each Telegram user.
+- **URL Validation**: Ensures URLs contain only domains (no paths, queries, or fragments), supports Punycode, blocks local/private addresses, and limits URL length to 300 characters.
 - **Formatted Status Reports**: Sends detailed `/status` messages with emojis (🟢/🔴) and clickable registrar links.
 - **Commands**:
   - `/start`: Initializes the bot and displays a welcome message.
@@ -87,6 +88,7 @@ MX Records: 10 smtp.google.com
 5. Configure monitored sites:
 
 - Add websites using `/addsite <url>` or via the "Add site" button in `/listsites`.
+- URLs must be in the format `http://example.com` or `https://example.com` (no paths, queries, or fragments).
 - Example `data/123456789.json`:
 
   ```json
@@ -136,7 +138,7 @@ website-monitoring-bot/
 
 ## Dependencies
 
-- `aiogram==3.20.0.post0`: Telegram bot framework
+- `aiogram`: Telegram bot framework
 - `python-whois`: WHOIS queries for domain expiration
 - `requests`: HTTP status checks
 - `pyOpenSSL`: SSL certificate validation

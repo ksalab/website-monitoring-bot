@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from datetime import datetime, timedelta
 from aiogram import Router, F
 from aiogram.filters import Command, CommandStart
@@ -12,7 +13,7 @@ from aiogram.types import (
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, quote
 from aiogram.utils.formatting import (
     Text,
     as_line,
@@ -26,6 +27,7 @@ from .checks import (
     check_ssl_certificate,
     check_domain_expiration,
     check_dns_records,
+    validate_url,
 )
 from .config import DATE_FORMAT
 
@@ -114,7 +116,7 @@ async def status_command(message: Message):
                         as_line(Text("Status: 🔴 Error during check"))
                     )
                     logger.error(
-                        f"HTTP check failed for {url}: {status_result}"
+                        f"HTTP check failed for {quote(url)}: {status_result}"
                     )
                 else:
                     status_emoji = (
@@ -131,7 +133,7 @@ async def status_command(message: Message):
                         )
                     )
                     logger.debug(
-                        f"HTTP status for {url}: {status_result['status']}"
+                        f"HTTP status for {quote(url)}: {status_result['status']}"
                     )
 
                 # Handle SSL
@@ -142,7 +144,9 @@ async def status_command(message: Message):
                             as_key_value("Error", "Check failed"),
                         )
                     )
-                    logger.error(f"SSL check failed for {url}: {ssl_result}")
+                    logger.error(
+                        f"SSL check failed for {quote(url)}: {ssl_result}"
+                    )
                 else:
                     site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
                     site["ssl_expires"] = ssl_result["expires"]
@@ -155,7 +159,7 @@ async def status_command(message: Message):
                             ssl_days_left = (ssl_expiry - datetime.now()).days
                         except ValueError:
                             logger.error(
-                                f"Invalid ssl_expires format for {url}: {site['ssl_expires']}"
+                                f"Invalid ssl_expires format for {quote(url)}: {site['ssl_expires']}"
                             )
                     content_parts.append(
                         as_marked_section(
@@ -168,7 +172,7 @@ async def status_command(message: Message):
                         )
                     )
                     logger.debug(
-                        f"SSL status for {url}: Valid={site['ssl_valid']}, Expires={site['ssl_expires']}"
+                        f"SSL status for {quote(url)}: Valid={site['ssl_valid']}, Expires={site['ssl_expires']}"
                     )
 
                 # Handle Domain
@@ -178,7 +182,7 @@ async def status_command(message: Message):
                 if domain:
                     domain_result = check_domain_expiration(domain)
                     logger.debug(
-                        f"WHOIS for {domain}: success={domain_result['success']}, "
+                        f"WHOIS for {quote(domain)}: success={domain_result['success']}, "
                         f"expires={domain_result['expires']}, registrar={domain_result['registrar']}, "
                         f"registrar_url={domain_result['registrar_url']}, error={domain_result['error']}"
                     )
@@ -198,7 +202,7 @@ async def status_command(message: Message):
                                 ).days
                             except ValueError:
                                 logger.error(
-                                    f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                                    f"Invalid domain_expires format for {quote(url)}: {site['domain_expires']}"
                                 )
                                 domain_status = "Invalid date format"
                         # Registrar info
@@ -250,7 +254,7 @@ async def status_command(message: Message):
                                     ", Invalid date)",
                                 )
                                 logger.error(
-                                    f"Invalid domain_expires format for {url}: {site['domain_expires']}"
+                                    f"Invalid domain_expires format for {quote(url)}: {site['domain_expires']}"
                                 )
                 content_parts.append(
                     as_marked_section(
@@ -280,7 +284,9 @@ async def status_command(message: Message):
                             as_key_value("Last Checked", dns_last_checked),
                         )
                     )
-                    logger.error(f"DNS check failed for {url}: {dns_result}")
+                    logger.error(
+                        f"DNS check failed for {quote(url)}: {dns_result}"
+                    )
                 else:
                     if dns_result["success"]:
                         site["dns_a"] = dns_result.get("a_records", [])
@@ -305,7 +311,7 @@ async def status_command(message: Message):
                         )
                     )
                     logger.info(
-                        f"DNS processed for {url}: A={dns_a}, MX={dns_mx}, Status={dns_status}"
+                        f"DNS processed for {quote(url)}: A={dns_a}, MX={dns_mx}, Status={dns_status}"
                     )
 
                 # Build and send response
@@ -313,26 +319,26 @@ async def status_command(message: Message):
                 try:
                     text, entities = content.render()
                     logger.debug(
-                        f"Sending /status message for {url}: text={text}, entities={entities}"
+                        f"Sending /status message for {quote(url)}: text={text}, entities={entities}"
                     )
                     await message.answer(**content.as_kwargs())
                     logger.info(
-                        f"Sent /status response for {url} to chat_id={user_id}"
+                        f"Sent /status response for {quote(url)} to chat_id={user_id}"
                     )
                 except TelegramBadRequest as e:
                     logger.error(
-                        f"Failed to send /status message for {url} to chat_id={user_id}: {e}"
+                        f"Failed to send /status message for {quote(url)} to chat_id={user_id}: {e}"
                     )
                     await message.answer(
-                        f"Error sending status for {url}. Check logs for details."
+                        f"Error sending status for {quote(url)}. Check logs for details."
                     )
 
             except Exception as e:
                 logger.error(
-                    f"Error processing status for {url} for user_id={user_id}: {e}"
+                    f"Error processing status for {quote(url)} for user_id={user_id}: {e}"
                 )
                 await message.answer(
-                    f"Error processing status for {url}. Check logs for details."
+                    f"Error processing status for {quote(url)}. Check logs for details."
                 )
 
         save(user_id, sites)
@@ -446,83 +452,56 @@ async def handle_commands_in_add_state(message: Message, state: FSMContext):
 async def process_add_site_url(message: Message, state: FSMContext):
     """Process URL input for adding a new site."""
     user_id = message.chat.id
-    logger.info(f"Processing URL input for add_site from chat_id={user_id}")
-
     url = message.text.strip()
+    logger.info(
+        f"Processing URL input for add_site from chat_id={user_id}: {quote(url)}"
+    )
 
     # Validate URL
-    try:
-        parsed_url = urlparse(url)
-        if not parsed_url.scheme in ["http", "https"]:
-            await message.answer(
-                "Invalid URL: Scheme must be http or https. Please try again."
-            )
-            logger.info(
-                f"Invalid URL input from chat_id={user_id}: {url} (invalid scheme)"
-            )
-            return
-        if not parsed_url.netloc:
-            await message.answer(
-                "Invalid URL: Missing domain name. Please try again."
-            )
-            logger.info(
-                f"Invalid URL input from chat_id={user_id}: {url} (missing netloc)"
-            )
-            return
-
-        # Normalize URL
-        normalized_url = urlunparse(
-            (
-                parsed_url.scheme,
-                parsed_url.netloc,
-                parsed_url.path or '/',
-                '',
-                '',
-                '',
-            )
+    validation_result = validate_url(url)
+    if not validation_result["valid"]:
+        await message.answer(validation_result["error"])
+        logger.info(
+            f"Invalid URL input from chat_id={user_id}: {quote(url)} ({validation_result['error']})"
         )
+        return
 
-        # Load existing sites
-        sites = load_sites(user_id)
+    normalized_url = validation_result["normalized_url"]
 
-        # Check for duplicates
-        if any(site["url"] == normalized_url for site in sites):
-            await message.answer(
-                f"Site {normalized_url} is already being monitored."
-            )
-            logger.info(
-                f"Duplicate URL input from chat_id={user_id}: {normalized_url}"
-            )
-            await state.clear()
-            return
+    # Load existing sites
+    sites = load_sites(user_id)
 
-        # Add new site
-        new_site: SiteConfig = {
-            "url": normalized_url,
-            "ssl_valid": None,
-            "ssl_expires": None,
-            "domain_expires": None,
-            "domain_last_checked": None,
-            "domain_notifications": [],
-            "ssl_notifications": [],
-            "dns_a": None,
-            "dns_mx": None,
-            "dns_last_checked": None,
-            "dns_records": {},
-        }
-        sites.append(new_site)
-        save(user_id, sites)
-
-        await message.answer(f"Site {normalized_url} added to monitoring.")
-        logger.info(f"Added site {normalized_url} for chat_id={user_id}")
-        await state.clear()
-
-    except Exception as e:
-        logger.error(
-            f"Error processing URL input for add_site for chat_id={user_id}: {e}"
+    # Check for duplicates
+    if any(site["url"] == normalized_url for site in sites):
+        await message.answer(
+            f"Site {normalized_url} is already being monitored."
         )
-        await message.answer("Error adding site. Check logs for details.")
+        logger.info(
+            f"Duplicate URL input from chat_id={user_id}: {quote(normalized_url)}"
+        )
         await state.clear()
+        return
+
+    # Add new site
+    new_site: SiteConfig = {
+        "url": normalized_url,
+        "ssl_valid": None,
+        "ssl_expires": None,
+        "domain_expires": None,
+        "domain_last_checked": None,
+        "domain_notifications": [],
+        "ssl_notifications": [],
+        "dns_a": None,
+        "dns_mx": None,
+        "dns_last_checked": None,
+        "dns_records": {},
+    }
+    sites.append(new_site)
+    save(user_id, sites)
+
+    await message.answer(f"Site {normalized_url} added to monitoring.")
+    logger.info(f"Added site {quote(normalized_url)} for chat_id={user_id}")
+    await state.clear()
 
 
 @router.message(Command("addsite"))
@@ -545,69 +524,48 @@ async def addsite_command(message: Message):
     url = args[1].strip()
 
     # Validate URL
-    try:
-        parsed_url = urlparse(url)
-        if not parsed_url.scheme in ["http", "https"]:
-            await message.answer("Invalid URL: Scheme must be http or https.")
-            logger.info(
-                f"Invalid /addsite URL from chat_id={user_id}: {url} (invalid scheme)"
-            )
-            return
-        if not parsed_url.netloc:
-            await message.answer("Invalid URL: Missing domain name.")
-            logger.info(
-                f"Invalid /addsite URL from chat_id={user_id}: {url} (missing netloc)"
-            )
-            return
-
-        # Normalize URL
-        normalized_url = urlunparse(
-            (
-                parsed_url.scheme,
-                parsed_url.netloc,
-                parsed_url.path or '/',
-                '',
-                '',
-                '',
-            )
+    validation_result = validate_url(url)
+    if not validation_result["valid"]:
+        await message.answer(validation_result["error"])
+        logger.info(
+            f"Invalid /addsite URL from chat_id={user_id}: {quote(url)} ({validation_result['error']})"
         )
+        return
 
-        # Load existing sites
-        sites = load_sites(user_id)
+    normalized_url = validation_result["normalized_url"]
 
-        # Check for duplicates
-        if any(site["url"] == normalized_url for site in sites):
-            await message.answer(
-                f"Site {normalized_url} is already being monitored."
-            )
-            logger.info(
-                f"Duplicate /addsite URL from chat_id={user_id}: {normalized_url}"
-            )
-            return
+    # Load existing sites
+    sites = load_sites(user_id)
 
-        # Add new site
-        new_site: SiteConfig = {
-            "url": normalized_url,
-            "ssl_valid": None,
-            "ssl_expires": None,
-            "domain_expires": None,
-            "domain_last_checked": None,
-            "domain_notifications": [],
-            "ssl_notifications": [],
-            "dns_a": None,
-            "dns_mx": None,
-            "dns_last_checked": None,
-            "dns_records": {},
-        }
-        sites.append(new_site)
-        save(user_id, sites)
+    # Check for duplicates
+    if any(site["url"] == normalized_url for site in sites):
+        await message.answer(
+            f"Site {normalized_url} is already being monitored."
+        )
+        logger.info(
+            f"Duplicate /addsite URL from chat_id={user_id}: {quote(normalized_url)}"
+        )
+        return
 
-        await message.answer(f"Site {normalized_url} added to monitoring.")
-        logger.info(f"Added site {normalized_url} for chat_id={user_id}")
+    # Add new site
+    new_site: SiteConfig = {
+        "url": normalized_url,
+        "ssl_valid": None,
+        "ssl_expires": None,
+        "domain_expires": None,
+        "domain_last_checked": None,
+        "domain_notifications": [],
+        "ssl_notifications": [],
+        "dns_a": None,
+        "dns_mx": None,
+        "dns_last_checked": None,
+        "dns_records": {},
+    }
+    sites.append(new_site)
+    save(user_id, sites)
 
-    except Exception as e:
-        logger.error(f"Error processing /addsite for chat_id={user_id}: {e}")
-        await message.answer("Error adding site. Check logs for details.")
+    await message.answer(f"Site {normalized_url} added to monitoring.")
+    logger.info(f"Added site {quote(normalized_url)} for chat_id={user_id}")
 
 
 @router.message(Command("removesite"))
@@ -629,62 +587,37 @@ async def removesite_command(message: Message):
 
     url = args[1].strip()
 
-    # Validate and remove URL
-    try:
-        parsed_url = urlparse(url)
-        if not parsed_url.scheme in ["http", "https"]:
-            await message.answer("Invalid URL: Scheme must be http or https.")
-            logger.info(
-                f"Invalid /removesite URL from chat_id={user_id}: {url} (invalid scheme)"
-            )
-            return
-        if not parsed_url.netloc:
-            await message.answer("Invalid URL: Missing domain name.")
-            logger.info(
-                f"Invalid /removesite URL from chat_id={user_id}: {url} (missing netloc)"
-            )
-            return
-
-        # Normalize URL
-        normalized_url = urlunparse(
-            (
-                parsed_url.scheme,
-                parsed_url.netloc,
-                parsed_url.path or '/',
-                '',
-                '',
-                '',
-            )
+    # Validate URL
+    validation_result = validate_url(url)
+    if not validation_result["valid"]:
+        await message.answer(validation_result["error"])
+        logger.info(
+            f"Invalid /removesite URL from chat_id={user_id}: {quote(url)} ({validation_result['error']})"
         )
+        return
 
-        # Load existing sites
-        sites = load_sites(user_id)
+    normalized_url = validation_result["normalized_url"]
 
-        # Check if site exists
-        site_to_remove = next(
-            (site for site in sites if site["url"] == normalized_url), None
+    # Load existing sites
+    sites = load_sites(user_id)
+
+    # Check if site exists
+    site_to_remove = next(
+        (site for site in sites if site["url"] == normalized_url), None
+    )
+    if not site_to_remove:
+        await message.answer(f"Site {normalized_url} is not being monitored.")
+        logger.info(
+            f"Site not found for /removesite from chat_id={user_id}: {quote(normalized_url)}"
         )
-        if not site_to_remove:
-            await message.answer(
-                f"Site {normalized_url} is not being monitored."
-            )
-            logger.info(
-                f"Site not found for /removesite from chat_id={user_id}: {normalized_url}"
-            )
-            return
+        return
 
-        # Remove site
-        sites.remove(site_to_remove)
-        save(user_id, sites)
+    # Remove site
+    sites.remove(site_to_remove)
+    save(user_id, sites)
 
-        await message.answer(f"Site {normalized_url} removed from monitoring.")
-        logger.info(f"Removed site {normalized_url} for chat_id={user_id}")
-
-    except Exception as e:
-        logger.error(
-            f"Error processing /removesite for chat_id={user_id}: {e}"
-        )
-        await message.answer("Error removing site. Check logs for details.")
+    await message.answer(f"Site {normalized_url} removed from monitoring.")
+    logger.info(f"Removed site {quote(normalized_url)} for chat_id={user_id}")
 
 
 @router.callback_query(lambda c: c.data == "remove_site")
@@ -772,23 +705,36 @@ async def remove_selected_site_callback(
     user_id = callback_query.from_user.id
     url = callback_query.data[len("remove:") :]
     logger.info(
-        f"Received remove_selected_site callback for url={url} from user_id={user_id}"
+        f"Received remove_selected_site callback for url={quote(url)} from user_id={user_id}"
     )
 
     try:
+        # Validate URL
+        validation_result = validate_url(url)
+        if not validation_result["valid"]:
+            await callback_query.message.edit_text(validation_result["error"])
+            logger.info(
+                f"Invalid URL in remove_selected_site from user_id={user_id}: {quote(url)} ({validation_result['error']})"
+            )
+            await state.clear()
+            await callback_query.answer()
+            return
+
+        normalized_url = validation_result["normalized_url"]
+
         # Load existing sites
         sites = load_sites(user_id)
 
         # Check if site exists
         site_to_remove = next(
-            (site for site in sites if site["url"] == url), None
+            (site for site in sites if site["url"] == normalized_url), None
         )
         if not site_to_remove:
             await callback_query.message.edit_text(
-                f"Site {url} is not being monitored."
+                f"Site {normalized_url} is not being monitored."
             )
             logger.info(
-                f"Site not found for remove_selected_site from user_id={user_id}: {url}"
+                f"Site not found for remove_selected_site from user_id={user_id}: {quote(normalized_url)}"
             )
             await state.clear()
             await callback_query.answer()
@@ -824,9 +770,11 @@ async def remove_selected_site_callback(
             )
 
         await callback_query.message.answer(
-            f"Site {url} removed from monitoring."
+            f"Site {normalized_url} removed from monitoring."
         )
-        logger.info(f"Removed site {url} for user_id={user_id}")
+        logger.info(
+            f"Removed site {quote(normalized_url)} for user_id={user_id}"
+        )
         await state.clear()
         await callback_query.answer()
 

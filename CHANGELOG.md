@@ -5,6 +5,22 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.7.0] - 2025-06-23
+
+### Added
+
+- feat(checks): Add `validate_url` function to enforce URL validation (only http/https, domain only, max 300 characters, no local/private addresses, Punycode support via `idna`)
+- feat(handlers): Integrate URL validation in `/addsite`, `/removesite`, and FSM states with detailed error messages
+- feat(checks): Add SSRF protection in `check_website_status`, `check_ssl_certificate`, `check_domain_expiration`, `check_dns_records` by blocking local/private addresses
+- feat(storage): Validate URLs for control characters (`\n`, `\r`, `\t`) before saving to JSON
+- feat(handlers): Escape URLs in logs using `urllib.parse.quote` for security
+- feat(handlers): Add throttling to `/addsite` to limit request frequency (5 requests per minute)
+
+### Changed
+
+- feat(requirements): Remove `dotenv==0.9.9`, keep `python-dotenv==1.0.1`
+- feat(readme): Update dependencies (`requests` → `aiohttp`, `pyOpenSSL` → `ssl/certifi`, aiogram version to `3.13.1`)
+
 ## [1.6.0] - 2025-06-16
 
 ### Added

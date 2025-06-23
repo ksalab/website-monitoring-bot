@@ -1,10 +1,14 @@
 import json
 import logging
 import os
+import re
 from typing import List, TypedDict, Optional
 from .config import DATA_DIR
 
 logger = logging.getLogger(__name__)
+
+# Regular expression to check for control characters
+CONTROL_CHAR_REGEX = re.compile(r'[\n\r\t]')
 
 
 class SiteConfig(TypedDict):
@@ -65,6 +69,14 @@ def load_sites(user_id: int) -> List[SiteConfig]:
                 if not isinstance(site, dict) or "url" not in site:
                     logger.error(f"Invalid site entry in {sites_path}: {site}")
                     raise ValueError(f"Invalid site entry: {site}")
+                # Validate URL for control characters
+                if CONTROL_CHAR_REGEX.search(site["url"]):
+                    logger.error(
+                        f"Invalid URL in {sites_path}: {site['url']} (contains control characters)"
+                    )
+                    raise ValueError(
+                        f"Invalid URL: {site['url']} contains control characters"
+                    )
                 site.setdefault("domain_notifications", [])
                 site.setdefault("ssl_notifications", [])
                 site.setdefault("dns_a", None)
@@ -91,12 +103,23 @@ def save(user_id: int, sites: List[SiteConfig]) -> None:
 
     Raises:
         OSError: If file writing fails.
+        ValueError: If any URL contains invalid characters.
     """
     sites_path = get_user_sites_path(user_id)
     logger.debug(
         f"Attempting to save {len(sites)} sites for user_id={user_id} to: {sites_path}"
     )
     os.makedirs(DATA_DIR, exist_ok=True)
+
+    # Validate URLs for control characters
+    for site in sites:
+        if CONTROL_CHAR_REGEX.search(site["url"]):
+            logger.error(
+                f"Cannot save: Invalid URL {site['url']} contains control characters"
+            )
+            raise ValueError(
+                f"Invalid URL: {site['url']} contains control characters"
+            )
 
     try:
         with open(sites_path, "w") as file:
