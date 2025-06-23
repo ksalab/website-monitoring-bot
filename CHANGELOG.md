@@ -5,6 +5,27 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.9.0] - 2023-10-25
+
+### Added
+- Added `/help` command to display bot usage instructions and version.
+- Updated `/start` command to show greeting, bot name, version, and link to `/help`.
+- Implemented dynamic version loading from `VERSION` file.
+
+## [1.8.1] - 2025-06-23
+
+### Fixed
+- Synchronized bot commands in `bot.py` with `BOT_COMMANDS_CONFIG` from `handlers.py`, added `addsite` and `removesite`.
+
+## [1.8.0] - 2025-10-24
+
+### Added
+
+- feat: Add `/settings` command to customize `/status` output
+- feat: Add button-based interface for enabling/disabling SSL and DNS sections in `/status` (Site section always enabled)
+- feat: Store display settings in `show_ssl` and `show_dns` fields in SiteConfig
+- feat: Update `/status` to respect user-defined display settings
+
 ## [1.7.0] - 2025-06-23
 
 ### Added

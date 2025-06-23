@@ -23,6 +23,7 @@ class SiteConfig(TypedDict):
     dns_mx: Optional[List[str]]
     dns_last_checked: Optional[str]
     dns_records: Optional[dict]
+    settings: Optional[dict]
 
 
 def get_user_sites_path(user_id: int) -> str:
@@ -83,6 +84,9 @@ def load_sites(user_id: int) -> List[SiteConfig]:
                 site.setdefault("dns_mx", None)
                 site.setdefault("dns_last_checked", None)
                 site.setdefault("dns_records", {})
+                site.setdefault(
+                    "settings", {"show_ssl": True, "show_dns": True}
+                )
             logger.info(
                 f"Successfully loaded {len(sites)} sites for user_id={user_id} from {sites_path}"
             )

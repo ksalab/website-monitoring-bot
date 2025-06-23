@@ -19,6 +19,8 @@ Features and tasks:
       ✔ Added command and interactive input via FSM. @done(25-06-16 16:54)
     Implement /removesite <url> to remove a site:
       ✔ Added command and interactive removal via FSM. @done(25-06-16 16:54)
+    Security:
+      ✔ User URL validation and screening @done(25-06-23 19:17)
 
   Notifications:
     Domain expiration notifications:
@@ -73,8 +75,8 @@ Features and tasks:
       ✔ Domains in delete buttons. @done(25-06-16 17:05)
     Pagination for long lists in /listsites:
       - Planned: Not implemented, relevant for a large number of sites.
-    Customization of the /status format (e.g., selection of displayed blocks):
-      - Planned: Not discussed, but possible through user settings.
+    Customization of the /status format:
+      ✔ Selection of displayed blocks @done(25-06-23 20:29)
 
   Logging and debugging:
     Centralized logging:
