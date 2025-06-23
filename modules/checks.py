@@ -62,7 +62,7 @@ class URLValidationResult(TypedDict):
     normalized_url: Optional[str]
 
 
-def validate_url(url: str) -> URLValidationResult:
+async def validate_url(url: str) -> URLValidationResult:
     """Validate and normalize a URL, ensuring it contains only a domain.
 
     Args:
