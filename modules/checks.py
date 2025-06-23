@@ -13,7 +13,7 @@ import idna
 from datetime import datetime
 from tenacity import retry, stop_after_attempt, wait_exponential
 from typing import TypedDict, Optional, List
-from urllib.parse import urlparse, quote
+from urllib.parse import urlparse, urlunparse, quote
 from .config import DATE_FORMAT, CERT_DATE_FORMAT
 
 logger = logging.getLogger(__name__)
