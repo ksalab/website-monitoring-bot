@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import re
 from datetime import datetime, timedelta
 from aiogram import Router, F
@@ -37,6 +38,7 @@ router = Router()
 
 BOT_COMMANDS_CONFIG = {
     "start": "Start website monitoring",
+    "help": "Show bot usage instructions",
     "status": "Check current website statuses",
     "listsites": "List all monitored websites",
     "addsite": "Add a new website to monitor",
@@ -45,6 +47,19 @@ BOT_COMMANDS_CONFIG = {
 }
 
 BOT_COMMANDS = list(BOT_COMMANDS_CONFIG.keys())
+
+
+def load_version():
+    """Load bot version from VERSION file."""
+    try:
+        with open("VERSION", "r") as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        logger.error("VERSION file not found")
+        return "Unknown"
+    except Exception as e:
+        logger.error(f"Error reading VERSION file: {e}")
+        return "Unknown"
 
 
 def create_new_site_config(normalized_url: str) -> SiteConfig:
@@ -108,12 +123,37 @@ class RemoveSiteState(StatesGroup):
 @router.message(CommandStart())
 async def start_command(message: Message):
     """Handle /start command."""
-    logger.info(f"Received /start command from chat_id={message.chat.id}")
-    await message.answer(
-        "Website Monitoring Bot started!\n"
-        "Use /status to check current website statuses, /listsites to list monitored sites, "
-        "/addsite <site> to add a new site, /removesite <site> to remove a site, or /settings to customize."
+    chat_id = message.chat.id
+    logger.info(f"Received /start command from chat_id={chat_id}")
+    version = load_version()
+    message_start = (
+        f"👋 Hello, {message.from_user.first_name}!\n\n"
+        "Welcome to Website Monitoring Bot!\n"
+        f"Version: {version}\n\n"
+        "Use /help for more info."
     )
+    await message.answer(message_start)
+
+
+@router.message(Command("help"))
+async def help_command(message: Message):
+    """Handle /help command to show bot usage instructions."""
+    chat_id = message.chat.id
+    logger.info(f"Received /help command from chat_id={chat_id}")
+    version = load_version()
+    commands_list = [
+        f"/{cmd} - {desc}" for cmd, desc in BOT_COMMANDS_CONFIG.items()
+    ]
+
+    message_help = (
+        "Website Monitoring Bot\n"
+        f"Version: {version}\n\n"
+        "This bot monitors websites for status, SSL certificates, "
+        "domain expiration, and DNS records.\n\n"
+        "Use the following commands to interact with the bot:\n"
+        f"{'\n '.join(commands_list)}"
+    )
+    await message.answer(message_help)
 
 
 @router.message(Command("settings"))
@@ -701,7 +741,7 @@ async def process_add_site_url(message: Message, state: FSMContext):
     )
 
     # Validate URL
-    validation_result = validate_url(url)
+    validation_result = await validate_url(url)
     if not validation_result["valid"]:
         await message.answer(validation_result["error"])
         logger.info(
@@ -751,9 +791,9 @@ async def addsite_command(message: Message):
     url = args[1].strip()
 
     # Validate URL
-    validation_result = validate_url(url)
+    validation_result = await validate_url(url)
     if not validation_result["valid"]:
-        await message.answer(validation_result["error"])
+        await message.answer(f"Invalid URL: {validation_result['error']}")
         logger.info(
             f"Invalid /addsite URL from chat_id={user_id}: {quote(url)} ({validation_result['error']})"
         )
@@ -799,7 +839,7 @@ async def removesite_command(message: Message):
     url = args[1].strip()
 
     # Validate URL
-    validation_result = validate_url(url)
+    validation_result = await validate_url(url)
     if not validation_result["valid"]:
         await message.answer(f"Invalid URL: {validation_result['error']}")
         logger.info(
@@ -919,7 +959,7 @@ async def remove_selected_site_callback(
 
     try:
         # Validate URL
-        validation_result = validate_url(url)
+        validation_result = await validate_url(url)
         if not validation_result["valid"]:
             await callback_query.message.edit_text(
                 f"Invalid URL: {validation_result['error']}."

@@ -5,6 +5,13 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.9.0] - 2023-10-25
+
+### Added
+- Added `/help` command to display bot usage instructions and version.
+- Updated `/start` command to show greeting, bot name, version, and link to `/help`.
+- Implemented dynamic version loading from `VERSION` file.
+
 ## [1.8.1] - 2025-06-23
 
 ### Fixed
