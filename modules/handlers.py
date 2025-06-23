@@ -35,14 +35,16 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-BOT_COMMANDS = [
-    "start",
-    "status",
-    "listsites",
-    "addsite",
-    "removesite",
-    "settings",
-]
+BOT_COMMANDS_CONFIG = {
+    "start": "Start website monitoring",
+    "status": "Check current website statuses",
+    "listsites": "List all monitored websites",
+    "addsite": "Add a new website to monitor",
+    "removesite": "Remove a website from monitoring",
+    "settings": "Customize bot settings",
+}
+
+BOT_COMMANDS = list(BOT_COMMANDS_CONFIG.keys())
 
 
 def create_new_site_config(normalized_url: str) -> SiteConfig:
@@ -799,7 +801,7 @@ async def removesite_command(message: Message):
     # Validate URL
     validation_result = validate_url(url)
     if not validation_result["valid"]:
-        await message.answer(validation_result["error"])
+        await message.answer(f"Invalid URL: {validation_result['error']}")
         logger.info(
             f"Invalid /removesite URL from chat_id={user_id}: {quote(url)} ({validation_result['error']})"
         )
@@ -919,7 +921,9 @@ async def remove_selected_site_callback(
         # Validate URL
         validation_result = validate_url(url)
         if not validation_result["valid"]:
-            await callback_query.message.edit_text(validation_result["error"])
+            await callback_query.message.edit_text(
+                f"Invalid URL: {validation_result['error']}."
+            )
             logger.info(
                 f"Invalid URL in remove_selected_site from user_id={user_id}: {quote(url)} ({validation_result['error']})"
             )
@@ -973,7 +977,7 @@ async def remove_selected_site_callback(
             )
         else:
             await callback_query.message.edit_text(
-                "No sites monitored. Use /addsite to add a site."
+                "No sites are currently monitored. Use /addsite to add a site."
             )
 
         await callback_query.message.answer(
@@ -996,7 +1000,7 @@ async def remove_selected_site_callback(
         await callback_query.answer()
     except Exception as e:
         logger.error(
-            f"Error in remove_selected_site for user_id={user_id}: {e}"
+            f"Error in remove_selected_site callback for user_id={user_id}: {e}"
         )
         await callback_query.message.answer("Error removing site. Check logs.")
         await state.clear()
@@ -1053,7 +1057,9 @@ async def cancel_remove_site_callback(
         await state.clear()
         await callback_query.answer()
     except Exception as e:
-        logger.error(f"Error in cancel_remove_site for user_id={user_id}: {e}")
+        logger.error(
+            f"Error in cancel_remove_site callback for user_id={user_id}: {e}"
+        )
         await callback_query.message.answer(
             "Error cancelling site removal. Check logs."
         )

@@ -5,7 +5,7 @@ from aiogram.types import BotCommand
 from aiogram.exceptions import TelegramConflictError
 from modules.config import load_config
 from modules.logging import setup_logging
-from modules.handlers import router
+from modules.handlers import router, BOT_COMMANDS_CONFIG
 from modules.notifications import monitor_websites
 
 logger = logging.getLogger(__name__)
@@ -22,21 +22,8 @@ async def main():
         # Set bot commands
         await bot.set_my_commands(
             [
-                BotCommand(
-                    command="start", description="Start website monitoring"
-                ),
-                BotCommand(
-                    command="status",
-                    description="Check current website statuses",
-                ),
-                BotCommand(
-                    command="listsites",
-                    description="List all monitored websites",
-                ),
-                BotCommand(
-                    command="settings",
-                    description="Customize bot settings",
-                ),
+                BotCommand(command=command, description=description)
+                for command, description in BOT_COMMANDS_CONFIG.items()
             ]
         )
         logger.info("Bot commands set successfully")

@@ -5,6 +5,11 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.8.1] - 2025-06-23
+
+### Fixed
+- Synchronized bot commands in `bot.py` with `BOT_COMMANDS_CONFIG` from `handlers.py`, added `addsite` and `removesite`.
+
 ## [1.8.0] - 2025-10-24
 
 ### Added
