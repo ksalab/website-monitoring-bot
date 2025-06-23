@@ -5,6 +5,15 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.8.0] - 2025-10-24
+
+### Added
+
+- feat: Add `/settings` command to customize `/status` output
+- feat: Add button-based interface for enabling/disabling SSL and DNS sections in `/status` (Site section always enabled)
+- feat: Store display settings in `show_ssl` and `show_dns` fields in SiteConfig
+- feat: Update `/status` to respect user-defined display settings
+
 ## [1.7.0] - 2025-06-23
 
 ### Added

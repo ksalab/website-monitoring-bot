@@ -33,6 +33,10 @@ async def main():
                     command="listsites",
                     description="List all monitored websites",
                 ),
+                BotCommand(
+                    command="settings",
+                    description="Customize bot settings",
+                ),
             ]
         )
         logger.info("Bot commands set successfully")
