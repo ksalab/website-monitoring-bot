@@ -89,10 +89,10 @@ Features and tasks:
       - Planned: Not implemented, may be useful for production.
 
   Infrastructure and dependencies:
+    ✔ Addition of dnspython for DNS @done(25-06-16 17:08)
     Modular code structure:
       ✔ Separation into checks, storage, handlers, etc. @done(25-06-16 17:08)
-    ✔ Addition of dnspython for DNS @done(25-06-16 17:08)
     Containerization (Docker):
-      - Planned: Not implemented, will simplify deployment.
+      ✔ Created Dockerfile and docker-compose.yml. @done(25-06-25 12:41)
     CI/CD for automated testing and deployment:
       - Planned: Not implemented, can be configured via GitHub Actions.
