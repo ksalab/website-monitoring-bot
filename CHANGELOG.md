@@ -5,7 +5,16 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
-## [1.9.0] - 2023-10-25
+## [1.10.0] - 2025-06-25
+
+### Added
+
+- Added Docker support for containerized deployment using long polling.
+- Created `Dockerfile` and `docker-compose.yml` for easy setup.
+- Added `.env.example` with configuration for `BOT_TOKEN`, `USER_ID`, `GROUP_ID`, `TOPIC_ID`, `CHECK_INTERVAL`, `NOTIFICATION_MODE`, `DOMAIN_EXPIRY_THRESHOLD`, `SSL_EXPIRY_THRESHOLD`.
+- Updated `README.md` with Docker installation instructions.
+
+## [1.9.0] - 2025-06-24
 
 ### Added
 - Added `/help` command to display bot usage instructions and version.

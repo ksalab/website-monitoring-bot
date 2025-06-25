@@ -50,7 +50,44 @@ MX Records: 10 smtp.google.com
 - A Telegram group ID and optional topic ID
 - Dependencies listed in `requirements.txt`
 
-### Steps
+### Docker Installation
+
+1. Clone the repository:
+
+  ```sh
+  git clone https://github.com/your-username/website-monitoring-bot.git
+  cd website-monitoring-bot
+  ```
+
+2. Copy `.env.example` to `.env` and fill in the required variables:
+
+  ```sh
+  cp .env.example .env
+  nano .env
+  ```
+
+- `BOT_TOKEN`: Your Telegram bot token.
+- `USER_ID`: Your Telegram user ID for access control.
+- `GROUP_ID`: Your Telegram group ID for notifications.
+- `TOPIC_ID`: Optional topic ID for group notifications.
+- `CHECK_INTERVAL`: Interval for website checks (in seconds, default: `3600`).
+- `NOTIFICATION_MODE`: Notification mode (`group` or `user`, default: `group`).
+- `DOMAIN_EXPIRY_THRESHOLD`: Days for domain expiry notifications (default: `30,15,7,1`).
+- `SSL_EXPIRY_THRESHOLD`: Days for SSL expiry notifications (default: `30,15,7,1`).
+
+3. Build and run the bot:
+
+  ```sh
+  docker-compose up -d
+  ```
+
+4. Stop the bot:
+
+  ```sh
+  docker-compose down
+  ```
+
+### Manual Installation
 
 1. Clone the repository:
   ```sh
