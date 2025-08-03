@@ -10,9 +10,11 @@ from .storage import SiteConfig, load_sites, save
 from .checks import (
     WebsiteStatus,
     SSLStatus,
+    DNSStatus,
     check_website_status,
     check_ssl_certificate,
     check_domain_expiration,
+    check_dns_records,
 )
 from .config import DATA_DIR, DATE_FORMAT
 
@@ -38,6 +40,7 @@ async def send_notification(
                     int(config["TOPIC_ID"]) if config["TOPIC_ID"] else None
                 ),
                 text=message,
+                parse_mode="HTML",
             )
             logger.info(
                 f"Notification sent to group {config['GROUP_ID']} (topic: {config['TOPIC_ID'] or 'none'}): {message}"
@@ -46,12 +49,37 @@ async def send_notification(
             await bot.send_message(
                 chat_id=config["USER_ID"],
                 text=message,
+                parse_mode="HTML",
             )
             logger.info(
                 f"Notification sent to user {config['USER_ID']}: {message}"
             )
     except TelegramBadRequest as e:
         logger.error(f"Failed to send notification: {e}")
+
+
+async def send_dns_change_notification(
+    bot: Bot, config: Dict[str, any], url: str, changes: List[dict]
+) -> None:
+    """Send notification about DNS record changes.
+
+    Args:
+        bot: Telegram Bot instance.
+        config: Configuration dictionary.
+        url: URL of the site with changed DNS records.
+        changes: List of changes with record_type, old_records, and new_records.
+    """
+    logger.debug(f"Preparing DNS change notification for {url}")
+    message = f"🌐 DNS change detected for {url}:\n"
+    for change in changes:
+        message += f"<b>{change['record_type']} records changed:</b>\n"
+        message += f"Old: <code>str(change['old_records']))</code>\n"
+        message += f"New: <code>str(change['new_records']))</code>\n"
+
+    try:
+        await send_notification(bot, config, message.as_html())
+    except Exception as e:
+        logger.error(f"Failed to send DNS change notification for {url}: {e}")
 
 
 def get_nearest_threshold(
@@ -121,22 +149,33 @@ async def check_site_status(
 
     status_result = await check_website_status(url)
     ssl_result = await check_ssl_certificate(url)
+    parsed_url = urlparse(url)
+    domain = parsed_url.hostname
+    dns_result = await check_dns_records(domain, site)
 
-    if isinstance(status_result, Exception) or isinstance(
-        ssl_result, Exception
+    if (
+        isinstance(status_result, Exception)
+        or isinstance(ssl_result, Exception)
+        or isinstance(dns_result, Exception)
     ):
         logger.error(
-            f"Error checking {url} for user_id={user_id}: {status_result or ssl_result}"
+            f"Error checking {url} for user_id={user_id}: {status_result or ssl_result or dns_result}"
         )
         return
 
     logger.info(
-        f"Check completed for {url} (user_id={user_id}): Status={status_result['status']}, SSL={ssl_result['ssl_status']}"
+        f"Check completed for {url} (user_id={user_id}): Status={status_result['status']}, SSL={ssl_result['ssl_status']}, DNS={'success' if dns_result['success'] else 'failed'}"
     )
 
     # Update SSL data
     site["ssl_valid"] = ssl_result["ssl_status"] == "valid"
     site["ssl_expires"] = ssl_result["expires"]
+
+    # Send DNS change notifications
+    if dns_result["changes"]:
+        await send_dns_change_notification(
+            bot, config, url, dns_result["changes"]
+        )
 
     # Check SSL expiration warnings
     if site["ssl_expires"]:
@@ -164,8 +203,6 @@ async def check_site_status(
             )
 
     # Check domain expiration if not checked recently
-    parsed_url = urlparse(url)
-    domain = parsed_url.hostname
     last_checked = site.get("domain_last_checked")
     should_check_domain = True
 

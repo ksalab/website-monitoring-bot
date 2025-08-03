@@ -54,6 +54,7 @@ class DNSStatus(TypedDict):
     other_records: dict
     success: bool
     error: Optional[str]
+    changes: List[dict]
 
 
 class URLValidationResult(TypedDict):
@@ -395,16 +396,17 @@ def check_domain_expiration(domain: str) -> DomainStatus:
 
 
 async def check_dns_records(
-    domain: str, record_types: List[str] = ["A", "MX"]
+    domain: str, site_config: dict, record_types: List[str] = ["A", "MX"]
 ) -> DNSStatus:
-    """Check DNS records for a domain, querying authoritative servers.
+    """Check DNS records for a domain, querying authoritative servers, and track changes.
 
     Args:
         domain: Domain name to check.
+        site_config: Site configuration dictionary to store previous records.
         record_types: List of DNS record types to query (default: ["A", "MX"]).
 
     Returns:
-        DNSStatus: DNS records and error information.
+        DNSStatus: DNS records, changes, and error information.
     """
     logger.debug(
         f"Checking DNS records for {quote(domain)}: types={record_types}"
@@ -416,6 +418,7 @@ async def check_dns_records(
         "other_records": {},
         "success": False,
         "error": None,
+        "changes": [],
     }
 
     # Check for local/private addresses
@@ -451,6 +454,14 @@ async def check_dns_records(
                 "8.8.4.4",
             ]  # Fallback to Google DNS
 
+        # Initialize previous records
+        previous_records = site_config.get("dns_previous_records", {})
+        current_records = {
+            "a_records": [],
+            "mx_records": [],
+            "other_records": {},
+        }
+
         for record_type in record_types:
             try:
                 rdatatype = getattr(dns.rdatatype, record_type)
@@ -461,44 +472,78 @@ async def check_dns_records(
                     f"Received {record_type} answers for {quote(domain)}: {answers.rrset}"
                 )
                 if record_type == "A":
-                    result["a_records"] = sorted(
+                    current_records["a_records"] = sorted(
                         [str(rdata) for rdata in answers]
                     )
                 elif record_type == "MX":
-                    result["mx_records"] = sorted(
+                    current_records["mx_records"] = sorted(
                         [
                             f"{rdata.preference} {rdata.exchange}"
                             for rdata in answers
                         ]
                     )
                 else:
-                    result["other_records"][record_type.lower()] = sorted(
-                        [str(rdata) for rdata in answers]
+                    current_records["other_records"][record_type.lower()] = (
+                        sorted([str(rdata) for rdata in answers])
                     )
                 logger.debug(
-                    f"DNS {record_type} for {quote(domain)}: {result.get(record_type.lower() + '_records', result['other_records'].get(record_type.lower()))}"
+                    f"DNS {record_type} for {quote(domain)}: {current_records.get(record_type.lower() + '_records', current_records['other_records'].get(record_type.lower()))}"
                 )
             except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN) as e:
                 logger.warning(
                     f"No {record_type} records for {quote(domain)}: {e}"
                 )
                 if record_type == "A":
-                    result["a_records"] = []
+                    current_records["a_records"] = []
                 elif record_type == "MX":
-                    result["mx_records"] = []
+                    current_records["mx_records"] = []
                 else:
-                    result["other_records"][record_type.lower()] = []
+                    current_records["other_records"][record_type.lower()] = []
             except dns.exception.DNSException as e:
                 logger.warning(
                     f"DNS {record_type} query failed for {quote(domain)}: {e}"
                 )
                 if record_type == "A":
-                    result["a_records"] = []
+                    current_records["a_records"] = []
                 elif record_type == "MX":
-                    result["mx_records"] = []
+                    current_records["mx_records"] = []
                 else:
-                    result["other_records"][record_type.lower()] = []
+                    current_records["other_records"][record_type.lower()] = []
 
+        # Compare with previous records
+        for record_type in record_types:
+            key = f"{record_type.lower()}_records"
+            current = current_records.get(
+                key,
+                current_records["other_records"].get(record_type.lower(), []),
+            )
+            previous = previous_records.get(key, [])
+            if current != previous:
+                result["changes"].append(
+                    {
+                        "record_type": record_type,
+                        "old_records": previous,
+                        "new_records": current,
+                    }
+                )
+                logger.info(
+                    f"DNS change detected for {quote(domain)}: {record_type} records changed from {previous} to {current}"
+                )
+
+        # Update site_config
+        site_config["dns_a"] = current_records["a_records"]
+        site_config["dns_mx"] = current_records["mx_records"]
+        site_config["dns_records"] = current_records["other_records"]
+        site_config["dns_last_checked"] = datetime.now().strftime(DATE_FORMAT)
+        site_config["dns_previous_records"] = {
+            "a_records": current_records["a_records"],
+            "mx_records": current_records["mx_records"],
+            "other_records": current_records["other_records"],
+        }
+
+        result["a_records"] = current_records["a_records"]
+        result["mx_records"] = current_records["mx_records"]
+        result["other_records"] = current_records["other_records"]
         result["success"] = True
         logger.info(
             f"DNS check successful for {quote(domain)}: A={result['a_records']}, MX={result['mx_records']}, Other={result['other_records']}"
