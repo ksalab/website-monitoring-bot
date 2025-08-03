@@ -7,7 +7,7 @@ A Telegram bot that monitors website availability and SSL certificate status, se
 - **HTTP Status Monitoring**: Checks website availability (e.g., `200 OK`, `down`).
 - **SSL Certificate Monitoring**: Tracks SSL validity, expiration dates, and remaining days.
 - **Domain Expiration Monitoring**: Retrieves domain expiration dates via WHOIS and calculates remaining days.
-- **DNS Monitoring**: Checks A (IPv4) and MX (mail server) records with caching and error handling using `dnspython`.
+- **DNS Monitoring**: Checks A (IPv4) and MX (mail server) records using `dnspython` with caching and authoritative server queries. Sends notifications on changes to A or MX records.
 - **Per-User Configuration**: Stores monitored sites in `data/<user_id>.json` for each Telegram user.
 - **URL Validation**: Ensures URLs contain only domains (no paths, queries, or fragments), supports Punycode, blocks local/private addresses, and limits URL length to 300 characters.
 - **Formatted Status Reports**: Sends detailed `/status` messages with emojis (🟢/🔴) and clickable registrar links.

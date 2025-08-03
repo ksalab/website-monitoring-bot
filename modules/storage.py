@@ -23,6 +23,7 @@ class SiteConfig(TypedDict):
     dns_mx: Optional[List[str]]
     dns_last_checked: Optional[str]
     dns_records: Optional[dict]
+    dns_previous_records: Optional[dict]
     settings: Optional[dict]
 
 
@@ -84,6 +85,7 @@ def load_sites(user_id: int) -> List[SiteConfig]:
                 site.setdefault("dns_mx", None)
                 site.setdefault("dns_last_checked", None)
                 site.setdefault("dns_records", {})
+                site.setdefault("dns_previous_records", {})
                 site.setdefault(
                     "settings", {"show_ssl": True, "show_dns": True}
                 )

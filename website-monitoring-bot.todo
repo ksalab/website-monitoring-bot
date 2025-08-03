@@ -1,7 +1,8 @@
-Website Monitoring Bot - TODO List
-==================================================
-This file contains the current status of the bot's features and planned tasks.
-==================================================
+=================================================================================
+| Website Monitoring Bot - TODO List
+=================================================================================
+| This file contains the current status of the bot's features and planned tasks.
+=================================================================================
 Features and tasks:
 
   Main commands and functionality::
@@ -13,7 +14,7 @@ Features and tasks:
       ✔ DNS monitoring (A, MX) with caching and error handling has been added. @done(25-06-16 16:52)
     Added the /listsites command:
       ✔ Added the /listsites command. @done(25-06-16 16:53)
-      ✔ Added inline buttons “Add site” and “Remove site”. @done(25-06-16 16:53)
+      ✔ Added inline buttons "Add site" and "Remove site". @done(25-06-16 16:53)
       ✔ Display domains instead of full URLs in the delete buttons. @done(25-06-16 16:53)
     Implement /addsite <url> to add a site:
       ✔ Added command and interactive input via FSM. @done(25-06-16 16:54)
@@ -71,7 +72,7 @@ Features and tasks:
       ✔ Independent handling of sites. @done(25-06-16 17:04)
       ✔ DNS error handling with cache. @done(25-06-16 17:05)
     Inline buttons for /listsites:
-      ✔ “Add site”, “Remove site”. @done(25-06-16 17:05)
+      ✔ "Add site", "Remove site". @done(25-06-16 17:05)
       ✔ Domains in delete buttons. @done(25-06-16 17:05)
     Pagination for long lists in /listsites:
       - Planned: Not implemented, relevant for a large number of sites.

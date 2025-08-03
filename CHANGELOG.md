@@ -5,6 +5,17 @@ The format is based on Keep a Changelog,and this project adheres to Semantic Ver
 
 ## [UNTAGGED]
 
+## [1.11.0] - 2025-08-03
+
+### Added
+
+- Added DNS change notifications for A and MX records.
+- Updated `modules/checks.py` to compare current and previous DNS records and return changes.
+- Added `send_dns_change_notification` in `modules/notifications.py` for formatted DNS change notifications.
+- Updated SiteConfig in `modules/storage.py` to include `dns_previous_records` for tracking previous DNS records.
+- Integrated DNS change checks into `check_site_status` in `modules/notifications.py`.
+- Updated `README.md` with information about DNS change notifications.
+
 ## [1.10.0] - 2025-06-25
 
 ### Added
